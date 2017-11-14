@@ -62,3 +62,35 @@ https://datascience.stackexchange.com/questions/17216/pca-before-k-mean-clusteri
 https://stats.stackexchange.com/questions/157621/how-would-pca-help-with-a-k-means-clustering-analysis
 
 https://github.com/piiswrong/dec
+
+
+
+#### to clean all *.pyc
+
+find . -name "*.pyc" -type f -delete
+
+
+#### project structure
+
+https://github.com/kennethreitz/samplemod
+
+
+
+#### to build
+
+http://lorenamesa.com/packaging-my-first-python-egg.html
+python setup.py build
+python setup.py sdist
+python setup.py bdist_egg
+
+
+#### code style
+
+http://docs.python-guide.org/en/latest/
+https://www.python.org/dev/peps/pep-0008/
+
+
+
+#### TO EXECUTE PIPELINE
+
+../spark-2.2.0-bin-hadoop2.7/bin/spark-submit --py-files rankchoices-0.1.0-py2.7.egg  rankchoices/pipeline.py 

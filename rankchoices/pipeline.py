@@ -26,4 +26,6 @@ def execute():
     kmeans_model_fitted, kmeans_train_ds_pca, cluster_freq_dict, kmeans_test_ds_pca, accuracyMeanList, accuracyDictList, time_duration_kmean, time_duration_test, tot_col, k_pca, k_pca_perc, split, split_col = cluster.test_cluster()
     print("<> END TRAINING STAGE " + str(datetime.timedelta(seconds=time_duration_kmean.total_seconds())))
     print("<> END ACCURACY STAGE " + str(datetime.timedelta(seconds=time_duration_test.total_seconds())))
-    
+
+
+execute()
