@@ -1,4 +1,5 @@
 import datetime
+import json, codecs
 import logging
 import numpy as np
 import os
@@ -25,7 +26,8 @@ import pyspark.sql.types as types
 
 """
 import rankchoices.dataclean.onehotencoding as onehotencoding
-df_ohe, kmeans_train_ds, kmeans_test_ds, kmeans_model_fitted, frequency_dict, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start()
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start()
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(stage_start="KMEANS")
 
 dfraw = onehotencoding.load_from_csv (input_filename)
 df = onehotencoding.quantize(dfraw)
@@ -110,7 +112,8 @@ def build_cluster_freq_dict(frequency_dict):
     
     cluster_freq_dict = {}
     # make dataframes
-    for c, cgroup in frequency_dict.items():
+    for ci, cgroup in frequency_dict.items():
+        c =str(ci)
         cluster_freq_dict[c]={}
         for ar, vallist in cgroup.items():
             val_sorted = sorted(vallist, key=lambda x: x['OCCUR'], reverse=True)
@@ -122,7 +125,7 @@ def build_cluster_freq_dict(frequency_dict):
                     curr_val = z['OCCUR']
                     curr_pos=curr_pos+1
                 z['POS']= curr_pos
-                cluster_freq_dict[c][ar][z['IDX']]= z
+                cluster_freq_dict[c][ar][str(z['IDX'])]= z
                 
             #df = sqlContext.createDataFrame(val_sorted, schema)
             #df = df.orderBy(df.POS.asc())
@@ -136,14 +139,14 @@ def test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict):
     accuracyDictList = []
     
     for r in kmeans_test_ds.collect():
-        c= r['prediction']
+        c= str(r['prediction'])
         
         accuracyDict = {}
         accuracyDict['prediction'] = c
         tot_acc=0
         
         for ar in arguments_col_y:
-            val= r[ar]
+            val= str(r[ar])
             
             # valori di default
             last_position = None
@@ -171,15 +174,25 @@ def test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict):
     return accuracyDictList
 
 def save_cluster_freq_dict(cluster_freq_dict, file_name_dir):
-    if os.path.exists(file_name_dir): shutil.rmtree(file_name_dir)
-    os.makedirs(file_name_dir)
-    
+    #if os.path.exists(file_name_dir): shutil.rmtree(file_name_dir)
+    #os.makedirs(file_name_dir)
+    if os.path.exists(file_name_dir): os.remove(file_name_dir)
+    with open(file_name_dir, 'wb') as f:
+        json.dump(cluster_freq_dict, codecs.getwriter('utf-8')(f), ensure_ascii=False)
+    """
     for c, cgroup in cluster_freq_dict.items():
         for g, df in cgroup.items():
             fname = file_name_dir+"/"+ str(c) + "." +str(g)+".parquet"
             df.write.parquet(fname)
+    """        
         
 def load_cluster_freq_dict(file_name_dir):
+    
+    with open(file_name_dir) as json_data:
+        d = json.load(json_data)
+        return d
+    
+    """
     cluster_freq_dict =  {}
     spark = SparkSession.builder.master("local").appName("Word Count").config("spark.python.profile", "true").getOrCreate()
     for f in os.listdir(file_name_dir) :
@@ -195,6 +208,7 @@ def load_cluster_freq_dict(file_name_dir):
             cluster_freq_dict[c][col_group_name]=df
             
     return cluster_freq_dict
+    """
 
 def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, accuracyMeanList, time_duration_pca, time_duration_kmean, time_duration_test,  k_pca="-", k_pca_perc="-", split="-", split_col="-"):
     file = open(filename, 'w')
@@ -281,53 +295,62 @@ def apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_te
     pca_model = pca.fit(train_ds)
     
     train_ds_pca = pca_model.transform(train_ds) #train_ds_pca = train_ds_pca.drop(pcaInputCol)
-    #train_ds_pca.write.parquet(output_pca_train_filename, mode="overwrite")
+    train_ds_pca.write.parquet(output_pca_train_filename, mode="overwrite")
     
     test_ds_pca = pca_model.transform(test_ds) #test_ds_pca = test_ds_pca.drop(pcaInputCol)
-    #test_ds_pca.write.parquet(output_pca_test_filename, mode="overwrite")
+    test_ds_pca.write.parquet(output_pca_test_filename, mode="overwrite")
     return pca_model, train_ds_pca, test_ds_pca
 
 
-def start():
+def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9, 0.1], k_pca_perc = 5, stage_start="LOAD"):
+
+    # stage_start LOAD | PCA | KMEANS | TEST
 
     # INPUT DATA
-    base_filename                   = "data/light_r1.000.000"
     input_filename         = base_filename+".csv"
     output_train_file_name = base_filename+"-train.parquet"
     output_test_file_name  = base_filename+"-test.parquet"
     output_pca_train_filename = base_filename+"-pca-train.parquet"
     output_pca_test_filename  = base_filename+"-pca-test.parquet"
-    k_means_num = 100
+    cluster_freq_dict_filename = base_filename+"-dict.json"
+   
     
-    
-    split= [0.9, 0.1]
     random_seed = 1
     arguments_col_string = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
     arguments_col_x = [ 'X_ETA', 'X_SESSO', 'X_GRADO_URG', 'X_PRESTAZIONE']
     arguments_col_y = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
     arguments_col = arguments_col_x + arguments_col_y
             
-    k_pca_perc = 5
+    
             
     #LOAD DATA
-    
-    dfraw = load_from_csv (input_filename)
-    
-    # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE
-    df = quantize(dfraw)
-    
-    # STRING INDEXER
-    dfi, indexer_dict = add_stringindexer(arguments_col_string, df)
-    
-    # ONE HOT ENCODING
-    df_ohe = get_onehotencoding(arguments_col, dfi)
-    
-    
-    # TRAINING / TEST SPLIT
-    (train_ds, test_ds) = df_ohe.randomSplit(split, random_seed)
-    #train_ds.write.parquet(output_train_file_name, mode="overwrite")
-    #test_ds.write.parquet(output_test_file_name, mode="overwrite")
-    
+    train_ds = None
+    test_ds = None
+    t1 = datetime.datetime.now()
+    if(stage_start == "LOAD"):
+        dfraw = load_from_csv (input_filename)
+        
+        # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE
+        df = quantize(dfraw)
+        
+        # STRING INDEXER
+        dfi, indexer_dict = add_stringindexer(arguments_col_string, df)
+        
+        # ONE HOT ENCODING
+        df_ohe = get_onehotencoding(arguments_col, dfi)
+        
+        
+        # TRAINING / TEST SPLIT
+        (train_ds, test_ds) = df_ohe.randomSplit(split, random_seed)
+        train_ds.write.parquet(output_train_file_name, mode="overwrite")
+        test_ds.write.parquet(output_test_file_name, mode="overwrite")
+    else:
+        train_ds = load_from_parquet (output_train_file_name)
+        test_ds = load_from_parquet (output_test_file_name)
+        
+    time_duration_split = (datetime.datetime.now()-t1)
+    print('time split: ' + str(datetime.timedelta(seconds=time_duration_split.total_seconds())))
+        
     
     #PCA
     tot_col = len(train_ds.head(1)[0]['features'])
@@ -336,30 +359,59 @@ def start():
     pcaInputCol="features"
     pcaOutputCol="pca_features"
     t1 = datetime.datetime.now()
-    pca_model, train_ds_pca, test_ds_pca = apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_test_filename, pcaInputCol, pcaOutputCol)
+    pca_model=None
+    train_ds_pca=None 
+    test_ds_pca=None
+    if(stage_start == "LOAD" or stage_start == "PCA"):
+        pca_model, train_ds_pca, test_ds_pca = apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_test_filename, pcaInputCol, pcaOutputCol)
+    else:
+        train_ds_pca = load_from_parquet (output_pca_train_filename)
+        test_ds_pca = load_from_parquet (output_pca_test_filename)
+        
     time_duration_pca = (datetime.datetime.now()-t1)
-    
     print('time pca: ' + str(datetime.timedelta(seconds=time_duration_pca.total_seconds())))
+    
+    
     
     #K MEANS
     t1 = datetime.datetime.now()
-    kmeans = KMeans().setK(k_means_num).setSeed(1).setFeaturesCol(pcaOutputCol)
-    kmeans_model_fitted = kmeans.fit(train_ds_pca)
-    kmeans_train_ds = kmeans_model_fitted.transform(train_ds_pca)   
-    file_name_dir_kmeans = base_filename+".kmeans"
-    if os.path.exists(file_name_dir_kmeans): shutil.rmtree(file_name_dir_kmeans)
-    kmeans_model_fitted.save(file_name_dir_kmeans)
-    time_duration_kmean = (datetime.datetime.now()-t1)
+    kmeans_train_ds = None
+    kmeans_test_ds = None
+    output_kmeans_train_ds_filename = base_filename+"-kmeans-train.parquet"
+    output_kmeans_test_ds_filename = base_filename+"-kmeans-test.parquet"
     
-    # KMEAN PREDICTION ON TEST SET
-    kmeans_test_ds = kmeans_model_fitted.transform(test_ds_pca)   
+    if(stage_start == "LOAD" or stage_start == "PCA" or stage_start=="KMEANS"):
+        kmeans = KMeans().setK(k_means_num).setSeed(1).setFeaturesCol(pcaOutputCol)
+        kmeans_model_fitted = kmeans.fit(train_ds_pca)
+        file_name_dir_kmeans = base_filename+".kmeans"
+        if os.path.exists(file_name_dir_kmeans): shutil.rmtree(file_name_dir_kmeans)
+        kmeans_model_fitted.save(file_name_dir_kmeans)
+        
+        kmeans_train_ds = kmeans_model_fitted.transform(train_ds_pca)   
+        kmeans_test_ds = kmeans_model_fitted.transform(test_ds_pca) 
+        kmeans_train_ds.write.parquet(output_kmeans_train_ds_filename, mode="overwrite")
+        kmeans_test_ds.write.parquet(output_kmeans_test_ds_filename, mode="overwrite")
+    else:
+        kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
+        kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
+        
+    time_duration_kmean = (datetime.datetime.now()-t1)
+    print('time kmean: ' + str(datetime.timedelta(seconds=time_duration_kmean.total_seconds())))
     
     # KMEAN FREQUENCY DICTIONARY
-    frequency_dict = get_cluster_freq_dict(kmeans_train_ds, arguments_col_y)
-    cluster_freq_dict = build_cluster_freq_dict(frequency_dict)
+    t1 = datetime.datetime.now()
+    cluster_freq_dict = None
+    if(stage_start == "LOAD" or stage_start == "PCA" or stage_start=="KMEANS" or stage_start=="DICT"):
+        frequency_dict = get_cluster_freq_dict(kmeans_train_ds, arguments_col_y)
+        cluster_freq_dict = build_cluster_freq_dict(frequency_dict)
+        save_cluster_freq_dict(cluster_freq_dict, cluster_freq_dict_filename)
+    else:
+        cluster_freq_dict = load_cluster_freq_dict(cluster_freq_dict_filename)
+    time_duration_freq_dict = (datetime.datetime.now()-t1)
+    print('time freq dict: ' + str(datetime.timedelta(seconds=time_duration_freq_dict.total_seconds())))
     
     
-    #TEST  ACCURACY
+    #TEST ACCURACY
     t1 = datetime.datetime.now()
     accuracyDictList = test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict)
     accuracyMeanList = [e['mean_acc'] for e in accuracyDictList]
@@ -375,7 +427,7 @@ def start():
     write_report(report_filename, tot_col, k_means_num, arguments_col_y, accuracyDictList, accuracyMeanList, time_duration_pca, time_duration_kmean, time_duration_test, k_pca=k_pca, k_pca_perc=k_pca_perc, split=split, split_col=split_col)
 
     
-    return df_ohe, kmeans_train_ds, kmeans_test_ds, kmeans_model_fitted, frequency_dict, cluster_freq_dict, accuracyDictList, mean_acc
+    return kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc
 
 
 
