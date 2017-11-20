@@ -291,7 +291,7 @@ def apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_te
 def start():
 
     # INPUT DATA
-    base_filename                   = "data/light_r100.000"
+    base_filename                   = "data/light_r1.000.000"
     input_filename         = base_filename+".csv"
     output_train_file_name = base_filename+"-train.parquet"
     output_test_file_name  = base_filename+"-test.parquet"
@@ -300,14 +300,14 @@ def start():
     k_means_num = 100
     
     
-    split= [0.8, 0.2]
+    split= [0.9, 0.1]
     random_seed = 1
     arguments_col_string = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
     arguments_col_x = [ 'X_ETA', 'X_SESSO', 'X_GRADO_URG', 'X_PRESTAZIONE']
     arguments_col_y = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
     arguments_col = arguments_col_x + arguments_col_y
             
-    k_pca_perc = 10
+    k_pca_perc = 5
             
     #LOAD DATA
     
@@ -331,14 +331,15 @@ def start():
     
     #PCA
     tot_col = len(train_ds.head(1)[0]['features'])
+    print(tot_col)
     k_pca = int(tot_col*k_pca_perc/100)
     pcaInputCol="features"
     pcaOutputCol="pca_features"
     t1 = datetime.datetime.now()
-    
     pca_model, train_ds_pca, test_ds_pca = apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_test_filename, pcaInputCol, pcaOutputCol)
-    
     time_duration_pca = (datetime.datetime.now()-t1)
+    
+    print('time pca: ' + str(datetime.timedelta(seconds=time_duration_pca.total_seconds())))
     
     #K MEANS
     t1 = datetime.datetime.now()
