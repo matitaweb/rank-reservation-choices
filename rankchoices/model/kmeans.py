@@ -1,9 +1,19 @@
 
+from pyspark.ml.feature import OneHotEncoder, StringIndexer, IndexToString, VectorAssembler
 from pyspark.ml.clustering import KMeans
+from pyspark.sql.functions import lead, col, sum, count
+import pyspark.sql.functions as functions
+from pyspark.ml import Pipeline
 from pyspark.sql.functions import lead, col, sum
 import pandas as pd
 import os
 import shutil
+from pyspark.sql.types import IntegerType
+from pyspark.sql.types import StringType
+from pyspark.sql.types import StructType
+from pyspark.sql.types import StructField
+from pyspark.sql import SQLContext
+from pyspark.sql import SparkSession
 
 
 
@@ -56,6 +66,12 @@ def build_frequency_dict(arguments_col, dataset):
             clusterDict[c][col_group_name]=df_pos
 
     return clusterDict
+
+
+
+
+
+
 
 def save_frequency_dict(cluster_freq_dict, file_name_dir):
     if os.path.exists(file_name_dir): shutil.rmtree(file_name_dir)
