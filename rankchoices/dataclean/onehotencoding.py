@@ -26,8 +26,10 @@ import pyspark.sql.types as types
 
 """
 import rankchoices.dataclean.onehotencoding as onehotencoding
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start()
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r10.000.000")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(stage_start="KMEANS")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(stage_start="TEST")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(stage_stop="PCA")
 
 dfraw = onehotencoding.load_from_csv (input_filename)
 df = onehotencoding.quantize(dfraw)
@@ -302,9 +304,9 @@ def apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_te
     return pca_model, train_ds_pca, test_ds_pca
 
 
-def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9, 0.1], k_pca_perc = 5, stage_start="LOAD"):
+def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9, 0.1], k_pca_perc = 5, stage_start="LOAD", stage_stop="TEST"):
 
-    # stage_start LOAD | PCA | KMEANS | TEST
+    # stage_start LOAD | PCA | KMEANS | DICT | TEST
 
     # INPUT DATA
     input_filename         = base_filename+".csv"
@@ -350,7 +352,9 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9,
         
     time_duration_split = (datetime.datetime.now()-t1)
     print('time split: ' + str(datetime.timedelta(seconds=time_duration_split.total_seconds())))
-        
+    if( stage_stop == "LOAD"):
+        print('STOP at : ' + str(stage_stop))
+        return None, None, None, None, None
     
     #PCA
     tot_col = len(train_ds.head(1)[0]['features'])
@@ -370,7 +374,9 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9,
         
     time_duration_pca = (datetime.datetime.now()-t1)
     print('time pca: ' + str(datetime.timedelta(seconds=time_duration_pca.total_seconds())))
-    
+    if( stage_stop == "PCA"):
+        print('STOP at : ' + str(stage_stop))
+        return None, None, None, None, None
     
     
     #K MEANS
@@ -397,6 +403,9 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9,
         
     time_duration_kmean = (datetime.datetime.now()-t1)
     print('time kmean: ' + str(datetime.timedelta(seconds=time_duration_kmean.total_seconds())))
+    if( stage_stop == "KMEANS"):
+        print('STOP at : ' + str(stage_stop))
+        return kmeans_train_ds, kmeans_test_ds, None, None, None
     
     # KMEAN FREQUENCY DICTIONARY
     t1 = datetime.datetime.now()
@@ -409,7 +418,9 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9,
         cluster_freq_dict = load_cluster_freq_dict(cluster_freq_dict_filename)
     time_duration_freq_dict = (datetime.datetime.now()-t1)
     print('time freq dict: ' + str(datetime.timedelta(seconds=time_duration_freq_dict.total_seconds())))
-    
+    if( stage_stop == "DICT"):
+        print('STOP at : ' + str(stage_stop))
+        return kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, None, None
     
     #TEST ACCURACY
     t1 = datetime.datetime.now()
