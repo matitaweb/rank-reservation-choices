@@ -212,12 +212,13 @@ def load_cluster_freq_dict(file_name_dir):
     return cluster_freq_dict
     """
 
-def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, accuracyMeanList, time_duration_pca, time_duration_kmean, time_duration_test,  k_pca="-", k_pca_perc="-", split="-", split_col="-"):
+def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, accuracyMeanList, time_duration_split, time_duration_pca, time_duration_kmean, time_duration_test,  k_pca="-", k_pca_perc="-", split="-", split_col="-"):
     file = open(filename, 'w')
     file.write('filename: ' + str(filename)+'\n')
     file.write('k_pca: ' + str(k_pca_perc) + "% " + str(k_pca)+ ' / '+str(tot_col)+'\n')
     file.write('k_kmeans: ' + str(k_kmeans)+'\n')
     
+    file.write('time split: ' + str(datetime.timedelta(seconds=time_duration_split.total_seconds()))+'  \n')
     file.write('time pca: ' + str(datetime.timedelta(seconds=time_duration_pca.total_seconds()))+'  \n')
     file.write('time kmean: ' + str(datetime.timedelta(seconds=time_duration_kmean.total_seconds()))+'  \n')
     file.write('time test: ' + str(datetime.timedelta(seconds=time_duration_test.total_seconds()))+'  \n')
@@ -304,9 +305,9 @@ def apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_te
     return pca_model, train_ds_pca, test_ds_pca
 
 
-def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9, 0.1], k_pca_perc = 5, stage_start="LOAD", stage_stop="TEST"):
+def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.99, 0.01], k_pca_perc = 5, stage_start="LOAD", stage_stop="TEST"):
 
-    # stage_start LOAD | PCA | KMEANS | DICT | TEST
+    # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
 
     # INPUT DATA
     input_filename         = base_filename+".csv"
@@ -324,8 +325,10 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9,
     arguments_col = arguments_col_x + arguments_col_y
             
     
-            
-    #LOAD DATA
+    #############
+    # LOAD DATA #
+    #############
+    
     train_ds = None
     test_ds = None
     t1 = datetime.datetime.now()
@@ -346,9 +349,7 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9,
         (train_ds, test_ds) = df_ohe.randomSplit(split, random_seed)
         train_ds.write.parquet(output_train_file_name, mode="overwrite")
         test_ds.write.parquet(output_test_file_name, mode="overwrite")
-    else:
-        train_ds = load_from_parquet (output_train_file_name)
-        test_ds = load_from_parquet (output_test_file_name)
+        
         
     time_duration_split = (datetime.datetime.now()-t1)
     print('time split: ' + str(datetime.timedelta(seconds=time_duration_split.total_seconds())))
@@ -356,21 +357,25 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9,
         print('STOP at : ' + str(stage_stop))
         return None, None, None, None, None
     
-    #PCA
-    tot_col = len(train_ds.head(1)[0]['features'])
-    print(tot_col)
-    k_pca = int(tot_col*k_pca_perc/100)
+    
+    #######
+    # PCA #
+    #######
+    
     pcaInputCol="features"
     pcaOutputCol="pca_features"
-    t1 = datetime.datetime.now()
     pca_model=None
     train_ds_pca=None 
     test_ds_pca=None
+    t1 = datetime.datetime.now()
     if(stage_start == "LOAD" or stage_start == "PCA"):
+        if(stage_start == "PCA"):
+            train_ds = load_from_parquet (output_train_file_name)
+            test_ds = load_from_parquet (output_test_file_name)
+        tot_col = len(train_ds.head(1)[0]['features'])
+        k_pca = int(tot_col*k_pca_perc/100)
+        print("pca tot_col: " + str(tot_col) + " reduce to: " + str(k_pca) )
         pca_model, train_ds_pca, test_ds_pca = apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_test_filename, pcaInputCol, pcaOutputCol)
-    else:
-        train_ds_pca = load_from_parquet (output_pca_train_filename)
-        test_ds_pca = load_from_parquet (output_pca_test_filename)
         
     time_duration_pca = (datetime.datetime.now()-t1)
     print('time pca: ' + str(datetime.timedelta(seconds=time_duration_pca.total_seconds())))
@@ -379,7 +384,10 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9,
         return None, None, None, None, None
     
     
-    #K MEANS
+    ##########
+    # KMEANS #
+    ##########
+    
     t1 = datetime.datetime.now()
     kmeans_train_ds = None
     kmeans_test_ds = None
@@ -387,6 +395,10 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9,
     output_kmeans_test_ds_filename = base_filename+"-kmeans-test.parquet"
     
     if(stage_start == "LOAD" or stage_start == "PCA" or stage_start=="KMEANS"):
+        if(stage_start == 'KMEANS'):
+            train_ds_pca = load_from_parquet (output_pca_train_filename)
+            test_ds_pca = load_from_parquet (output_pca_test_filename)
+            
         kmeans = KMeans().setK(k_means_num).setSeed(1).setFeaturesCol(pcaOutputCol)
         kmeans_model_fitted = kmeans.fit(train_ds_pca)
         file_name_dir_kmeans = base_filename+".kmeans"
@@ -397,45 +409,63 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.9,
         kmeans_test_ds = kmeans_model_fitted.transform(test_ds_pca) 
         kmeans_train_ds.write.parquet(output_kmeans_train_ds_filename, mode="overwrite")
         kmeans_test_ds.write.parquet(output_kmeans_test_ds_filename, mode="overwrite")
-    else:
-        kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
-        kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
-        
+
     time_duration_kmean = (datetime.datetime.now()-t1)
     print('time kmean: ' + str(datetime.timedelta(seconds=time_duration_kmean.total_seconds())))
     if( stage_stop == "KMEANS"):
         print('STOP at : ' + str(stage_stop))
         return kmeans_train_ds, kmeans_test_ds, None, None, None
     
-    # KMEAN FREQUENCY DICTIONARY
+    
+    ##############################
+    # KMEAN FREQUENCY DICTIONARY #
+    ##############################
+    
     t1 = datetime.datetime.now()
     cluster_freq_dict = None
     if(stage_start == "LOAD" or stage_start == "PCA" or stage_start=="KMEANS" or stage_start=="DICT"):
+        if(stage_start == 'KMEANS'):
+            kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
+            kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
+            
         frequency_dict = get_cluster_freq_dict(kmeans_train_ds, arguments_col_y)
         cluster_freq_dict = build_cluster_freq_dict(frequency_dict)
         save_cluster_freq_dict(cluster_freq_dict, cluster_freq_dict_filename)
-    else:
-        cluster_freq_dict = load_cluster_freq_dict(cluster_freq_dict_filename)
+        
     time_duration_freq_dict = (datetime.datetime.now()-t1)
     print('time freq dict: ' + str(datetime.timedelta(seconds=time_duration_freq_dict.total_seconds())))
     if( stage_stop == "DICT"):
         print('STOP at : ' + str(stage_stop))
         return kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, None, None
     
-    #TEST ACCURACY
+    
+    #################
+    # TEST ACCURACY #
+    #################
     t1 = datetime.datetime.now()
-    accuracyDictList = test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict)
-    accuracyMeanList = [e['mean_acc'] for e in accuracyDictList]
-    mean_acc= np.mean(accuracyMeanList)
+    if(stage_start == "LOAD" or stage_start == "PCA" or stage_start=="KMEANS" or stage_start=="DICT" or stage_start="TEST"):
+        if(stage_start == 'TEST'):
+            cluster_freq_dict = load_cluster_freq_dict(cluster_freq_dict_filename)
+            kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
+            kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
+        accuracyDictList = test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict)
+        accuracyMeanList = [e['mean_acc'] for e in accuracyDictList]
+        mean_acc= np.mean(accuracyMeanList)
     time_duration_test = (datetime.datetime.now()-t1)
     
-    # REPORT ACCURACY
+    
+    ###################
+    # REPORT ACCURACY #
+    ###################
+    
     tot_rows = kmeans_train_ds.count() + kmeans_test_ds.count()
     split_col=(kmeans_train_ds.count(), kmeans_test_ds.count())
     
     report_filename = base_filename +".report.txt"
     if os.path.exists(report_filename): os.remove(report_filename)
-    write_report(report_filename, tot_col, k_means_num, arguments_col_y, accuracyDictList, accuracyMeanList, time_duration_pca, time_duration_kmean, time_duration_test, k_pca=k_pca, k_pca_perc=k_pca_perc, split=split, split_col=split_col)
+    tot_col = len(kmeans_train_ds.head(1)[0]['features'])
+    k_pca = int(tot_col*k_pca_perc/100)
+    write_report(report_filename, tot_col, k_means_num, arguments_col_y, accuracyDictList, accuracyMeanList, time_duration_split, time_duration_pca, time_duration_kmean, time_duration_test, k_pca=k_pca, k_pca_perc=k_pca_perc, split=split, split_col=split_col)
 
     
     return kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc
