@@ -30,6 +30,7 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(stage_start="KMEANS")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(stage_start="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(stage_stop="PCA")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="PCA", stage_stop="PCA")
 
 dfraw = onehotencoding.load_from_csv (input_filename)
 df = onehotencoding.quantize(dfraw)
@@ -443,7 +444,7 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.99
     # TEST ACCURACY #
     #################
     t1 = datetime.datetime.now()
-    if(stage_start == "LOAD" or stage_start == "PCA" or stage_start=="KMEANS" or stage_start=="DICT" or stage_start="TEST"):
+    if(stage_start == "LOAD" or stage_start == "PCA" or stage_start=="KMEANS" or stage_start=="DICT" or stage_start=="TEST"):
         if(stage_start == 'TEST'):
             cluster_freq_dict = load_cluster_freq_dict(cluster_freq_dict_filename)
             kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
