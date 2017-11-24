@@ -24,13 +24,27 @@ import os
 import shutil
 import pyspark.sql.types as types
 
+
 """
 import rankchoices.dataclean.onehotencoding as onehotencoding
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r10.000.000")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(stage_start="KMEANS")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(stage_start="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(stage_stop="PCA")
+
+#10.000
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="TEST")
+
+#10.000.000
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r10.000.000", stage_start="LOAD", stage_stop="PCA")
+
+#100.000.000
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="LOAD", stage_stop="LOAD")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="PCA", stage_stop="PCA")
+
+
+
+
 
 dfraw = onehotencoding.load_from_csv (input_filename)
 df = onehotencoding.quantize(dfraw)
@@ -295,7 +309,7 @@ def get_onehotencoding(arguments_col, df):
     return df_ohe
 
 def apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_test_filename, pcaInputCol, pcaOutputCol):
-    pca = PCA(k=k_pca, inputCol=pcaInputCol, outputCol=pcaOutputCol) #Argument with more than 65535 cols
+    pca = PCA(k=k_pca, inputCol="features", outputCol="pca_features") #Argument with more than 65535 cols
     pca_model = pca.fit(train_ds)
     
     train_ds_pca = pca_model.transform(train_ds) #train_ds_pca = train_ds_pca.drop(pcaInputCol)
@@ -306,7 +320,7 @@ def apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_te
     return pca_model, train_ds_pca, test_ds_pca
 
 
-def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.99, 0.01], k_pca_perc = 5, stage_start="LOAD", stage_stop="TEST"):
+def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.99, 0.01], k_pca_perc = 1, stage_start="LOAD", stage_stop="TEST"):
 
     # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
 
@@ -356,7 +370,7 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.99
     print('time split: ' + str(datetime.timedelta(seconds=time_duration_split.total_seconds())))
     if( stage_stop == "LOAD"):
         print('STOP at : ' + str(stage_stop))
-        return None, None, None, None, None
+        return train_ds, test_ds, None, None, None
     
     
     #######
@@ -382,7 +396,7 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.99
     print('time pca: ' + str(datetime.timedelta(seconds=time_duration_pca.total_seconds())))
     if( stage_stop == "PCA"):
         print('STOP at : ' + str(stage_stop))
-        return None, None, None, None, None
+        return train_ds_pca, test_ds_pca, None, None, None
     
     
     ##########
@@ -453,7 +467,7 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.99
         accuracyMeanList = [e['mean_acc'] for e in accuracyDictList]
         mean_acc= np.mean(accuracyMeanList)
     time_duration_test = (datetime.datetime.now()-t1)
-    
+    print('time test: ' + str(datetime.timedelta(seconds=time_duration_test.total_seconds())))
     
     ###################
     # REPORT ACCURACY #
