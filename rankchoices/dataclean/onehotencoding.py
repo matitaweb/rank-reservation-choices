@@ -34,6 +34,7 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 
 #10.000
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="TEST")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r10.000", stage_start="DICT", stage_stop="TEST")
 
 #10.000.000
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r10.000.000", stage_start="LOAD", stage_stop="PCA")
@@ -41,6 +42,9 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 #100.000.000
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="LOAD", stage_stop="LOAD")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="PCA", stage_stop="PCA")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="KMEANS", stage_stop="KMEANS")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="DICT", stage_stop="DICT")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="TEST", stage_stop="TEST")
 
 
 
@@ -319,7 +323,6 @@ def apply_pca(k_pca, train_ds, output_pca_train_filename, test_ds, output_pca_te
     test_ds_pca.write.parquet(output_pca_test_filename, mode="overwrite")
     return pca_model, train_ds_pca, test_ds_pca
 
-
 def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.99, 0.01], k_pca_perc = 1, stage_start="LOAD", stage_stop="TEST"):
 
     # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
@@ -439,7 +442,7 @@ def start(base_filename = "data/light_r10.000",  k_means_num = 100, split= [0.99
     t1 = datetime.datetime.now()
     cluster_freq_dict = None
     if(stage_start == "LOAD" or stage_start == "PCA" or stage_start=="KMEANS" or stage_start=="DICT"):
-        if(stage_start == 'KMEANS'):
+        if(stage_start == 'DICT'):
             kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
             kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
             
