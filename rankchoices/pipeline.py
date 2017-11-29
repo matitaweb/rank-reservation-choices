@@ -28,9 +28,12 @@ import pyspark.sql.types as types
 
 """
 import rankchoices.pipeline as pipe
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="KMEANS", stage_stop="KMEANS")
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="PCA")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="LOAD", stage_stop="LOAD")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="PCA")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="KMEANS", stage_stop="KMEANS")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="DICT", stage_stop="DICT")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="TEST", stage_stop="TEST")
+
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000.000")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_start="KMEANS")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_start="TEST")
@@ -192,8 +195,7 @@ def save_cluster_freq_dict(cluster_freq_dict, file_name_dir):
     if os.path.exists(file_name_dir): os.remove(file_name_dir)
     with open(file_name_dir, 'wb') as f:
         json.dump(cluster_freq_dict, codecs.getwriter('utf-8')(f), ensure_ascii=False)
-  
-        
+
 def load_cluster_freq_dict(file_name_dir):
     
     with open(file_name_dir) as json_data:
@@ -267,7 +269,6 @@ def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, a
     
     file.close()
 
-
 def quantize(dfraw):
     my_udf = functions.UserDefinedFunction(convert_y_giorni_alla_prenotazione, types.IntegerType())
     df = dfraw.withColumnRenamed("Y_GIORNI_ALLA_PRENOTAZIONE", "Y_GIORNI_ALLA_PRENOTAZIONE_OLD")
@@ -302,33 +303,89 @@ def apply_stringindexer_model_dict(string_argument_col, df, indexer_dict):
         
         df_indexed = stringindexer_model.transform(df_indexed)
         #trasform float index in integer
+        meta = df_indexed.schema[outputCol].metadata
+        #print(meta)
+        meta['ml_attr']['name']=e[1]
         df_indexed = df_indexed.withColumn(e[1], df_indexed[outputCol].cast(IntegerType()))
+        df_indexed = df_indexed.withColumn(e[1], col(e[1]).alias(e[1], metadata=meta))
     return df_indexed
 
-def get_onehotencoding_model(arguments_col, df, ohe_col):
+def get_onehotencoding_model(arguments_col, ohe_col):
     ohe_col_pair = zip([x for x in arguments_col if not x == 'X_ETA'], ohe_col)
-    encoders=[OneHotEncoder(inputCol=x[0], outputCol=x[1]) for x in ohe_col_pair]
+    encodersDict = {}
+    for x in ohe_col_pair:
+        ohe=OneHotEncoder(dropLast=False, inputCol=x[0], outputCol=x[1])
+        encodersDict[x[1]]= ohe
+    return encodersDict
+
+def apply_onehotencoding_model(df, encoderDict):
+    ohe_col = [k for k,x in encoderDict.items()]
+    encoders = [x for k, x in encoderDict.items()]
     assemblerOHE = VectorAssembler(inputCols=['X_ETA']+ohe_col, outputCol="features")
     pipeline = Pipeline(stages=encoders+[assemblerOHE])
     ohe_model=pipeline.fit(df)
-    return ohe_model
-
-def apply_onehotencoding_model(df, ohe_model, ohe_col):
     df_ohe=ohe_model.transform(df)
-    for x in ohe_col: df_ohe = df_ohe.drop(x)
+    #for x in ohe_col: df_ohe = df_ohe.drop(x)
     return df_ohe
+    
 
 def get_pca_model(k_pca, train_ds, pcaInputCol, pcaOutputCol):
     pca = PCA(k=k_pca, inputCol=pcaInputCol, outputCol=pcaOutputCol) #Argument with more than 65535 cols
     pca_model = pca.fit(train_ds)
     return pca_model
+    
+def get_metadata(df):
+    metadataDict = {}
+    for colname in df.columns:
+        if('ml_attr' in df.schema[colname].metadata):
+            metadataDict[colname]=df.schema[colname].metadata
+            continue
+        
+        meta = {
+            "ml_attr": {
+                "vals": [str(x[0]) for x in df.select(colname).distinct().collect()],
+                "type": "nominal", 
+                "name": colname}
+        }
+        metadataDict[colname]=meta
+    return metadataDict
+
+def add_metadata(df, metadataDict):
+    for colname in df.columns:
+        #if('ml_attr' in df.schema[colname].metadata):
+        #    continue
+        
+        if(colname in metadataDict):
+            meta = metadataDict[colname]
+            df = df.withColumn(colname, col(colname).alias(colname, metadata=meta))
+    return df    
+    
+def save_metadata(df, file_name_dir):
+    if os.path.exists(file_name_dir): shutil.rmtree(file_name_dir)
+    os.makedirs(file_name_dir)
+    for colname in df.columns:
+        if(not 'ml_attr' in df.schema[colname].metadata):
+            continue
+        meta = df.schema[colname].metadata
+        file_name_dir_col = os.path.join(file_name_dir,colname)
+        with open(file_name_dir_col, 'wb') as f:
+            json.dump(meta, codecs.getwriter('utf-8')(f), ensure_ascii=False)
+
+def load_metadata(file_name_dir):
+    metadataDict = {}
+    dirs = [d for d in os.listdir(file_name_dir) if not os.path.isdir(os.path.join(file_name_dir, d))]
+    for d in dirs:
+        meta = json.load(open(os.path.join(file_name_dir, d)))
+        metadataDict[d]=meta
+    return metadataDict
+        
 
 def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc = 1, k_means_num = 100,stage_start="LOAD", stage_stop="TEST"):
 
     # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
 
     # INPUT DATA
-    input_filename         = base_filename+".csv"
+    input_filename          = base_filename+".csv"
     
     string_indexer_path_dir = base_filename + "-indexer"
     ohe_path_dir = base_filename + "-onehotencoding"
@@ -361,7 +418,13 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         dfraw = load_from_csv (input_filename, get_input_schema())
         
         # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE
-        df = quantize(dfraw)
+        dfq = quantize(dfraw)
+        metadataDict = get_metadata(dfq)
+        df = add_metadata(dfq, metadataDict)
+        
+        metadata_file_name_dir = base_filename + "-metadata"
+        save_metadata(df, metadata_file_name_dir)
+        #print(df.schema['X_SESSO'].metadata)
         
         # STRING INDEXER
         indexer_dict = get_stringindexer_model_dict(arguments_col_string, df)
@@ -371,10 +434,8 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         
         # ONE HOT ENCODING
         ohe_col = ["OHE_"+x for x in arguments_col if not x == 'X_ETA']
-        ohe_model = get_onehotencoding_model(arguments_col, dfi, ohe_col)
-        #ohe_model_path = "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000-onehotencoding"
-        #ohe_model=PipelineModel.load(ohe_model_path)
-        df_ohe = apply_onehotencoding_model(dfi, ohe_model, ohe_col)
+        encodersDict= get_onehotencoding_model(arguments_col, ohe_col)
+        df_ohe = apply_onehotencoding_model(dfi, encodersDict)
         
         # TRAINING / TEST SPLIT
         (train_ds, test_ds) = df_ohe.randomSplit(split, random_seed)
@@ -396,8 +457,8 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         
         if os.path.exists(ohe_path_dir): shutil.rmtree(ohe_path_dir)
         print('Snaphot one hot encoder: ' + ohe_path_dir)
-        ohe_model.save(ohe_path_dir)
-        return train_ds, test_ds, None, None, None
+        #ohe_model.save(ohe_path_dir)
+        return train_ds, test_ds, df_ohe, None, None
     
     
     #######
@@ -464,6 +525,8 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     if( stage_stop == "KMEANS"):
         kmeans_train_ds.write.parquet(output_kmeans_train_ds_filename, mode="overwrite")
         kmeans_test_ds.write.parquet(output_kmeans_test_ds_filename, mode="overwrite")
+        print('Snapshot kmeans train-set: ' + output_kmeans_train_ds_filename)
+        print('Snapshot kmeans test-set: ' + output_kmeans_test_ds_filename)
         print('STOP at : ' + str(stage_stop) + ", " + str(datetime.timedelta(seconds=time_duration_kmean.total_seconds())))
         return kmeans_train_ds, kmeans_test_ds, None, None, None
     
@@ -482,6 +545,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         frequency_dict = get_cluster_freq_dict(kmeans_train_ds, arguments_col_y)
         cluster_freq_dict = build_cluster_freq_dict(frequency_dict)
         save_cluster_freq_dict(cluster_freq_dict, cluster_freq_dict_filename)
+        print('Snapshot dict test-set: ' + cluster_freq_dict_filename)
         
     time_duration_freq_dict = (datetime.datetime.now()-t1)
     print('time freq dict: ' + str(datetime.timedelta(seconds=time_duration_freq_dict.total_seconds())))
@@ -517,7 +581,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     tot_col = len(kmeans_train_ds.head(1)[0]['features'])
     k_pca = int(tot_col*k_pca_perc/100)
     write_report(report_filename, tot_col, k_means_num, arguments_col_y, accuracyDictList, accuracyMeanList, time_duration_split, time_duration_pca, time_duration_kmean, time_duration_test, k_pca=k_pca, k_pca_perc=k_pca_perc, split=split, split_col=split_col)
-
+    print('Snapshot report test-set: ' + report_filename)
     
     return kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc
 
