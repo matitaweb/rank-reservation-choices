@@ -37,7 +37,7 @@ arguments_col_y = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARI
 arguments_col = arguments_col_x + arguments_col_y
 
 
-
+base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/
     
 spark = SparkSession.builder.master("local").appName("Word Count").config("spark.python.profile", "true").getOrCreate()
 sqlContext = SQLContext(spark)

@@ -28,6 +28,7 @@ import pyspark.sql.types as types
 
 """
 import rankchoices.pipeline as pipe
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "/dati/data/light_r100.000.000", stage_start="LOAD", stage_stop="LOAD")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="LOAD", stage_stop="LOAD")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="PCA")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="KMEANS", stage_stop="KMEANS")
@@ -380,7 +381,7 @@ def load_metadata(file_name_dir):
     return metadataDict
         
 
-def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc = 1, k_means_num = 100,stage_start="LOAD", stage_stop="TEST"):
+def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc = 1, k_means_num = 100, stage_start="LOAD", stage_stop="TEST"):
 
     # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
 
@@ -443,21 +444,24 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     time_duration_split = (datetime.datetime.now()-t1)
     print('time split: ' + str(datetime.timedelta(seconds=time_duration_split.total_seconds())))
     if( stage_stop == "LOAD"):
+        t1 = datetime.datetime.now()
         train_ds.write.parquet(output_train_file_name, mode="overwrite")
         test_ds.write.parquet(output_test_file_name, mode="overwrite")
-        print('STOP at : ' + str(stage_stop) + ", " + str(datetime.timedelta(seconds=time_duration_split.total_seconds())))
         print('Snapshot train-set: ' + output_train_file_name)
         print('Snapshot test-set: ' + output_test_file_name)
-        
         if os.path.exists(string_indexer_path_dir): shutil.rmtree(string_indexer_path_dir)
         for k,indexer in indexer_dict.items():
             string_indexer_path = os.path.join(string_indexer_path_dir,k)
             print('Snaphot indexer: ' + string_indexer_path)
             indexer.save(string_indexer_path)
         
-        if os.path.exists(ohe_path_dir): shutil.rmtree(ohe_path_dir)
-        print('Snaphot one hot encoder: ' + ohe_path_dir)
+        #if os.path.exists(ohe_path_dir): shutil.rmtree(ohe_path_dir)
+        #print('Snaphot one hot encoder: ' + ohe_path_dir)
         #ohe_model.save(ohe_path_dir)
+        
+        time_duration_split_save = (datetime.datetime.now()-t1)
+        print('STOP at : ' + str(stage_stop) + ", save in: " + str(datetime.timedelta(seconds=time_duration_split_save.total_seconds())))
+        
         return train_ds, test_ds, df_ohe, None, None
     
     
@@ -485,11 +489,13 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     time_duration_pca = (datetime.datetime.now()-t1)
     print('time pca: ' + str(datetime.timedelta(seconds=time_duration_pca.total_seconds())))
     if( stage_stop == "PCA"):
+        t1 = datetime.datetime.now()
         train_ds_pca.write.parquet(output_pca_train_filename, mode="overwrite")
         test_ds_pca.write.parquet(output_pca_test_filename, mode="overwrite")
         if os.path.exists(pca_path_dir): shutil.rmtree(pca_path_dir)
         pca_model.save(pca_path_dir)
-        print('STOP at : ' + str(stage_stop) + ", " + str(datetime.timedelta(seconds=time_duration_pca.total_seconds())))
+        time_duration_pca_save = (datetime.datetime.now()-t1)
+        print('STOP at : ' + str(stage_stop) + ", save in: " + str(datetime.timedelta(seconds=time_duration_pca_save.total_seconds())))
         print('Snapshot pca train-set: ' + output_pca_train_filename)
         print('Snapshot pca test-set: ' + output_pca_test_filename)
         return train_ds_pca, test_ds_pca, None, None, None
@@ -523,11 +529,13 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     time_duration_kmean = (datetime.datetime.now()-t1)
     print('time kmean: ' + str(datetime.timedelta(seconds=time_duration_kmean.total_seconds())))
     if( stage_stop == "KMEANS"):
+        t1 = datetime.datetime.now()
         kmeans_train_ds.write.parquet(output_kmeans_train_ds_filename, mode="overwrite")
         kmeans_test_ds.write.parquet(output_kmeans_test_ds_filename, mode="overwrite")
+        time_duration_kmean_save = (datetime.datetime.now()-t1)
         print('Snapshot kmeans train-set: ' + output_kmeans_train_ds_filename)
         print('Snapshot kmeans test-set: ' + output_kmeans_test_ds_filename)
-        print('STOP at : ' + str(stage_stop) + ", " + str(datetime.timedelta(seconds=time_duration_kmean.total_seconds())))
+        print('STOP at : ' + str(stage_stop) + ", save in: " + str(datetime.timedelta(seconds=time_duration_kmean_save.total_seconds())))
         return kmeans_train_ds, kmeans_test_ds, None, None, None
     
     
