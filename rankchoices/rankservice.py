@@ -37,18 +37,18 @@ arguments_col_y = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARI
 arguments_col = arguments_col_x + arguments_col_y
 
 
-base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/
+base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/"
     
 spark = SparkSession.builder.master("local").appName("Word Count").config("spark.python.profile", "true").getOrCreate()
 sqlContext = SQLContext(spark)
 
 
-metadata_file_name_dir= "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000-metadata"
+metadata_file_name_dir= base_dir+"light_r10.000-metadata"
 metadataDict = pipe.load_metadata(metadata_file_name_dir)
 
 
 # STRING INDEXER
-stringindexer_path= "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000-indexer"
+stringindexer_path= base_dir+"light_r10.000-indexer"
 indexer_dict = pipe.load_stringindexer_model_dict(stringindexer_path)
 
 
@@ -57,17 +57,17 @@ ohe_col = ["OHE_"+x for x in arguments_col if not x == 'X_ETA']
 encodersDict= pipe.get_onehotencoding_model(arguments_col, ohe_col)
 
 
-pca_path_dir =  "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000-pca-model"
+pca_path_dir =  base_dir+"light_r10.000-pca-model"
 pca_model = PCAModel.load(pca_path_dir)
 #print(df_ohe.head(1))
 #print(df_ohe.schema['OHE_Y_FASCIA_ORARIA'].metadata)
 
 
-model_file_path = "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000.kmeans"
+model_file_path = base_dir+"light_r10.000.kmeans"
 kmeans_model = KMeansModel.load(model_file_path)  # load from file system 
 
 
-dict_file_path = "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000-dict.json"
+dict_file_path = base_dir+"light_r10.000-dict.json"
 with open(dict_file_path) as dict_data_file:    
     cluster_freq_dict = json.load(dict_data_file)
 
