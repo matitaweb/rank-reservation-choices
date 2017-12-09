@@ -8,7 +8,7 @@ from pyspark.ml.feature import OneHotEncoder, StringIndexer, StringIndexerModel,
 from pyspark.ml.clustering import KMeans
 from pyspark.ml import PipelineModel
 from pyspark.ml.clustering import KMeansModel
-from pyspark.sql.functions import lead, col, sum, count, last, greatest
+from pyspark.sql.functions import lead, col, count, last, greatest
 import pyspark.sql.functions as functions
 from pyspark.ml import Pipeline
 
@@ -23,6 +23,7 @@ from pyspark.sql import SparkSession
 import pandas as pd
 import os
 import shutil
+import math
 import pyspark.sql.types as types
 
 
@@ -328,7 +329,6 @@ def apply_onehotencoding_model(df, encoderDict):
     df_ohe=ohe_model.transform(df)
     #for x in ohe_col: df_ohe = df_ohe.drop(x)
     return df_ohe
-    
 
 def get_pca_model(k_pca, train_ds, pcaInputCol, pcaOutputCol):
     pca = PCA(k=k_pca, inputCol=pcaInputCol, outputCol=pcaOutputCol) #Argument with more than 65535 cols
@@ -381,6 +381,36 @@ def load_metadata(file_name_dir):
     return metadataDict
         
 
+# http://www.codehamster.com/2015/03/09/different-ways-to-calculate-the-euclidean-distance-in-python/
+def euclidean0_0 (vector1, vector2):
+    ''' calculate the euclidean distance
+        input: numpy.arrays or lists
+        return: 1. quard distance, 2. euclidean distance
+    '''
+    quar_distance = 0
+    try:
+        if(len(vector1) != len(vector2)):
+            raise RuntimeWarning("The length of the two vectors are not the same!")
+        zipVector = zip(vector1, vector2)
+ 
+        for member in zipVector:
+            quar_distance += (member[1] - member[0]) ** 2
+ 
+        return quar_distance, math.sqrt(quar_distance)
+ 
+    except Exception, err:
+        print('WARNING: %s\n' % str(err))
+        return -1, -1
+ 
+def euclidean0_1(vector1, vector2):
+    '''calculate the euclidean distance, no numpy
+    input: numpy.arrays or lists
+    return: euclidean distance
+    '''
+    dist = [(a - b)**2 for a, b in zip(vector1, vector2)]
+    dist = math.sqrt(sum(dist))
+    return dist
+
 def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc = 1, k_means_num = 100, stage_start="LOAD", stage_stop="TEST"):
 
     # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
@@ -389,7 +419,6 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     input_filename          = base_filename+".csv"
     
     string_indexer_path_dir = base_filename + "-indexer"
-    ohe_path_dir = base_filename + "-onehotencoding"
     output_train_file_name = base_filename+"-train.parquet"
     output_test_file_name  = base_filename+"-test.parquet"
     
