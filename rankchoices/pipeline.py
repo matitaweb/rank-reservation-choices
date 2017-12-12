@@ -381,6 +381,22 @@ def load_metadata(file_name_dir):
     return metadataDict
         
 
+def validate_with_metadata(rList, metadataDict):
+    resValidate = {}
+    resValidate['valid'] = []
+    resValidate['rejected'] = []
+    
+    for r in rList:
+        rejectedCols = {key: value for key, value in r.items() if not (value in metadataDict[key]['ml_attr']['vals'])}
+        if( len(rejectedCols.keys()) == 0):
+            resValidate['valid'].append(r);
+            continue
+        rejectedRow = {}
+        rejectedRow['row'] = r
+        rejectedRow['rejecterCols'] = rejectedCols
+        resValidate['rejected'].append(rejectedRow)
+    return resValidate
+
 # http://www.codehamster.com/2015/03/09/different-ways-to-calculate-the-euclidean-distance-in-python/
 def euclidean0_0 (vector1, vector2):
     ''' calculate the euclidean distance

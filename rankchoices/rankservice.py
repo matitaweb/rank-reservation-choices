@@ -21,7 +21,7 @@ normalizzazione del calcolo del ranking
 
 """
 
-spark_home = "/home/ubuntu/workspace/spark-2.2.0-bin-hadoop2.7"
+spark_home = "/home/ubuntu/workspace/spark-2.2.1-bin-hadoop2.7"
 base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000"
 
 
@@ -100,7 +100,7 @@ app = Flask(__name__)
 
 @app.route('/', methods=['GET'])
 def default_get():
-    rlist = [{ "X_ETA":77, "X_SESSO":1, "X_GRADO_URG":5, "STRING_X_PRESTAZIONE": "2000", "STRING_Y_UE":"18299", "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":10, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":11},{"X_ETA":43, "X_SESSO":2, "X_GRADO_URG":0, "STRING_X_PRESTAZIONE":"3413", "STRING_Y_UE":"17842", "Y_GIORNO_SETTIMANA":6, "Y_MESE_ANNO":3, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":35}]
+    rlist = [{ "X_ETA":77, "X_SESSO":1, "X_GRADO_URG":5, "STRING_X_PRESTAZIONE": "12000", "STRING_Y_UE":"18299", "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":10, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":11},{"X_ETA":43, "X_SESSO":2, "X_GRADO_URG":0, "STRING_X_PRESTAZIONE":"3413", "STRING_Y_UE":"17842", "Y_GIORNO_SETTIMANA":6, "Y_MESE_ANNO":3, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":35}]
     accuracyDictList = predict(rlist)
     return jsonify(accuracyDictList)
 
@@ -110,9 +110,12 @@ def post_predict():
     accuracyDictList = predict(rlist)
     return jsonify(accuracyDictList)
     
-def predict(rlist):
+def predict(rlistPar):
     t1 = datetime.datetime.now()
+    validationResult = pipe.validate_with_metadata(rlistPar, metadataDict)
+    print(validationResult)
     
+    rlist = validationResult['valid']
     # TRANSFORM JSON QUERY TO DATAFRAME
     dfraw = sqlContext.createDataFrame(rlist, schema=pipe.get_input_schema())
     request_col_names = dfraw.columns
@@ -145,6 +148,7 @@ def predict(rlist):
     print("PREDICTION: " + str(datetime.timedelta(seconds=time_duration_prepare.total_seconds())))
     
     t1 = datetime.datetime.now()
+    result = {}
     accuracyDictList = []
     
     
@@ -170,7 +174,9 @@ def predict(rlist):
     time_duration_prediction = (datetime.datetime.now()-t1)
     print("ACCURACY: " + str(datetime.timedelta(seconds=time_duration_prediction.total_seconds())))
 
-    return accuracyDictList
+    result['accuracyDictList']= accuracyDictList
+    result['esito'] ="OK"
+    return result
 
 
 
