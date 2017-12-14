@@ -112,7 +112,8 @@ def post_predict():
     
 def predict(rlistPar):
     t1 = datetime.datetime.now()
-    validationResult = pipe.validate_with_metadata(rlistPar, metadataDict)
+    exceptList = ["X_ETA", "Y_GIORNI_ALLA_PRENOTAZIONE"]
+    validationResult = pipe.validate_with_metadata(rlistPar, metadataDict, exceptList)
     print(validationResult)
     
     rlist = validationResult['valid']

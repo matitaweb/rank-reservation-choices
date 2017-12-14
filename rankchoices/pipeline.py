@@ -381,14 +381,25 @@ def load_metadata(file_name_dir):
     return metadataDict
         
 
-def validate_with_metadata(rList, metadataDict):
+def validate_with_metadata(rList, metadataDict, exceptList):
     resValidate = {}
     resValidate['valid'] = []
     resValidate['rejected'] = []
     
     for r in rList:
-        rejectedCols = {key: value for key, value in r.items() if not (value in metadataDict[key]['ml_attr']['vals'])}
-        if( len(rejectedCols.keys()) == 0):
+        rejectedCols = {key: value for key, value in r.items() if (not key in exceptList and not str(value) in metadataDict[key]['ml_attr']['vals']) }
+        """
+        for key, value in r.items():
+            if(key in exceptList):
+                continue
+            #v = str(value).decode("utf-8")
+            if (not str(value) in metadataDict[key]['ml_attr']['vals']):
+                print (metadataDict[key]['ml_attr']['vals'])
+                print (value)
+                print ( "")
+                rejectedCols[key]=value
+        """            
+        if(len(rejectedCols.keys()) == 0):
             resValidate['valid'].append(r);
             continue
         rejectedRow = {}
