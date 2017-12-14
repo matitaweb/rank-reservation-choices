@@ -6,6 +6,9 @@ import datetime
 import findspark
 from numpy import array
 from math import sqrt
+import argparse
+
+
 
 # to calculate euclidean distance
 #from scipy.spatial import distance
@@ -21,80 +24,7 @@ normalizzazione del calcolo del ranking
 
 """
 
-spark_home = "/home/ubuntu/workspace/spark-2.2.1-bin-hadoop2.7"
-base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000"
 
-
-t1 = datetime.datetime.now()
-
-findspark.init(spark_home)
-import pyspark
-from pyspark import SparkConf
-
-
-from pyspark import SparkContext
-from pyspark.sql import SQLContext
-from pyspark.sql import SparkSession
-from pyspark.ml import PipelineModel
-from pyspark.ml.feature import PCA, PCAModel
-
-from pyspark.ml.clustering import KMeans, KMeansModel
-
-import pipeline as pipe
-
-sc = pyspark.SparkContext(appName="rank")
-
-
-
-arguments_col_string = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
-arguments_col_x = [ 'X_ETA', 'X_SESSO', 'X_GRADO_URG', 'X_PRESTAZIONE']
-arguments_col_y = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
-arguments_col = arguments_col_x + arguments_col_y
-
-# LOAD SPARK
-spark = SparkSession.builder.master("local").appName("Word Count").config("spark.python.profile", "true").getOrCreate()
-sqlContext = SQLContext(spark)
-
-
-# LOAD METADATA COLUMNS
-metadata_file_name_dir= base_dir+"-metadata"
-metadataDict = pipe.load_metadata(metadata_file_name_dir)
-
-
-# LOAD STRING INDEXER (X_PRESTAZIONE, Y_UE)
-stringindexer_path= base_dir+"-indexer"
-indexer_dict = pipe.load_stringindexer_model_dict(stringindexer_path)
-
-
-# LOAD ONE HOT ENCODING
-ohe_col = ["OHE_"+x for x in arguments_col if not x == 'X_ETA']
-encodersDict= pipe.get_onehotencoding_model(arguments_col, ohe_col)
-
-# LOAD PCA MODEL
-pca_path_dir =  base_dir+"-pca-model"
-pca_model = PCAModel.load(pca_path_dir)
-#print(df_ohe.head(1))
-#print(df_ohe.schema['OHE_Y_FASCIA_ORARIA'].metadata)
-
-
-# LOAD KMEANS MODEL
-model_file_path = base_dir+".kmeans"
-kmeans_model = KMeansModel.load(model_file_path)  # load from file system 
-
-# LOAD FREQUECY DICT
-dict_file_path = base_dir+"-dict.json"
-with open(dict_file_path) as dict_data_file:    
-    cluster_freq_dict = json.load(dict_data_file)
-
-
-# LOAD KMEANS MODEL CENTERS
-centers = kmeans_model.clusterCenters()
-print("Cluster Centers: " + str(len(centers)))
-#print(str(len(cluster_freq_dict)))
-
-
-time_duration_loading= (datetime.datetime.now()-t1)
-print ("Successfully imported Spark Modules " + str(datetime.timedelta(seconds=time_duration_loading.total_seconds())))
 
 app = Flask(__name__)
 
@@ -114,11 +44,13 @@ def predict(rlistPar):
     t1 = datetime.datetime.now()
     exceptList = ["X_ETA", "Y_GIORNI_ALLA_PRENOTAZIONE"]
     validationResult = pipe.validate_with_metadata(rlistPar, metadataDict, exceptList)
-    print(validationResult)
+    #print(validationResult)
     
     rlist = validationResult['valid']
+    
     # TRANSFORM JSON QUERY TO DATAFRAME
-    dfraw = sqlContext.createDataFrame(rlist, schema=pipe.get_input_schema())
+    filtered
+    dfraw = sqlContext.createDataFrame(rlist, schema=pipe.get_input_schema(pipe.getArgumentsColToDrop()))
     request_col_names = dfraw.columns
     
     # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE 
@@ -150,6 +82,8 @@ def predict(rlistPar):
     
     t1 = datetime.datetime.now()
     result = {}
+    result['version'] = 1.0.0
+    result['model']="KMEAN:100, PCA:0.1"
     accuracyDictList = []
     
     
@@ -166,7 +100,7 @@ def predict(rlistPar):
         accuracyDictList.append(accuracyDict)
         
     tot_centerdistance= sum(accuracyDict['centerdistance'] for accuracyDict in accuracyDictList)  
-    print(tot_centerdistance)
+    #print(tot_centerdistance)
     for accuracyDict in accuracyDictList:
         centerdistance = accuracyDict['centerdistance']
         mean_acc  = accuracyDict['mean_acc']
@@ -176,12 +110,94 @@ def predict(rlistPar):
     print("ACCURACY: " + str(datetime.timedelta(seconds=time_duration_prediction.total_seconds())))
 
     result['accuracyDictList']= accuracyDictList
-    result['esito'] ="OK"
+    result['status'] ="OK"
     return result
 
 
 
 if __name__ == '__main__':
+    
+    parser = argparse.ArgumentParser(description='Process rank requests.')
+    parser.add_argument('-b', '--base_dir_path', type=str, help='-b base dir path ')
+    parser.add_argument('-s', '--spark_home_path', type=str, help='-s spark_home path ')
+    args = parser.parse_args()
+    if args.base_dir_path:
+        print("ARG: " + args.base_dir_path)
+        base_dir = args.base_dir_path
+    else:
+        base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000"
+    
+    if args.spark_home_path:
+        print("ARG: " + args.spark_home_path)
+        spark_home = args.spark_home_path
+    else:
+        spark_home = "/home/ubuntu/workspace/spark-2.2.1-bin-hadoop2.7"
+    
+    t1 = datetime.datetime.now()
+    findspark.init(spark_home)
+    import pyspark
+    from pyspark import SparkConf
+    from pyspark import SparkContext
+    SparkContext.setSystemProperty('spark.ui.enabled', 'false')
+    from pyspark.sql import SQLContext
+    from pyspark.sql import SparkSession
+    from pyspark.ml import PipelineModel
+    from pyspark.ml.feature import PCA, PCAModel
+    from pyspark.ml.clustering import KMeans, KMeansModel
+    import pipeline as pipe
+
+    
+    arguments_col_string = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
+    arguments_col_x = [ 'X_ETA', 'X_SESSO', 'X_GRADO_URG', 'X_PRESTAZIONE']
+    arguments_col_y = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+    arguments_col = arguments_col_x + arguments_col_y
+    
+    # LOAD SPARK
+    spark = SparkSession.builder.master("local").appName("Rank").config("spark.python.profile", "true").getOrCreate()
+    sqlContext = SQLContext(spark)
+    
+    
+    # LOAD METADATA COLUMNS
+    metadata_file_name_dir= base_dir+"-metadata"
+    metadataDict = pipe.load_metadata(metadata_file_name_dir)
+    
+    
+    # LOAD STRING INDEXER (X_PRESTAZIONE, Y_UE)
+    stringindexer_path= base_dir+"-indexer"
+    indexer_dict = pipe.load_stringindexer_model_dict(stringindexer_path)
+    
+    
+    # LOAD ONE HOT ENCODING
+    ohe_col = ["OHE_"+x for x in arguments_col if not x == 'X_ETA']
+    encodersDict= pipe.get_onehotencoding_model(arguments_col, ohe_col)
+    
+    # LOAD PCA MODEL
+    pca_path_dir =  base_dir+"-pca-model"
+    pca_model = PCAModel.load(pca_path_dir)
+    #print(df_ohe.head(1))
+    #print(df_ohe.schema['OHE_Y_FASCIA_ORARIA'].metadata)
+    
+    
+    # LOAD KMEANS MODEL
+    model_file_path = base_dir+".kmeans"
+    kmeans_model = KMeansModel.load(model_file_path)  # load from file system 
+    
+    # LOAD FREQUECY DICT
+    dict_file_path = base_dir+"-dict.json"
+    with open(dict_file_path) as dict_data_file:    
+        cluster_freq_dict = json.load(dict_data_file)
+    
+    
+    # LOAD KMEANS MODEL CENTERS
+    centers = kmeans_model.clusterCenters()
+    print("Cluster Centers: " + str(len(centers)))
+    #print(str(len(cluster_freq_dict)))
+    
+    
+    time_duration_loading= (datetime.datetime.now()-t1)
+    print ("Successfully imported Spark Modules " + str(datetime.timedelta(seconds=time_duration_loading.total_seconds())))
+    
+    
     host = os.environ.get('IP', '0.0.0.0')
     port = int(os.environ.get('PORT', 8080))
     app.run(host=host, port=port, debug=True)

@@ -43,6 +43,7 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 
 #10.000
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="LOAD", stage_stop="LOAD")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="PCA")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="DICT", stage_stop="TEST")
 
@@ -60,18 +61,22 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 
 """
 
-def get_input_schema():
-    input_schema = StructType([
-        StructField("X_ETA", IntegerType()),
-        StructField("X_SESSO", IntegerType()),
-        StructField("X_GRADO_URG", IntegerType()),
-        StructField("STRING_X_PRESTAZIONE", StringType()), 
-        StructField("STRING_Y_UE", StringType()),
-        StructField("Y_GIORNO_SETTIMANA", IntegerType()),
-        StructField("Y_MESE_ANNO", IntegerType()),
-        StructField("Y_FASCIA_ORARIA", IntegerType()),
-        StructField("Y_GIORNI_ALLA_PRENOTAZIONE", IntegerType())
-    ])
+def get_input_schema(arguments_col_to_drop):
+    dictStructType = {}
+    dictStructType["X_ETA"]= StructField("X_ETA", IntegerType())
+    dictStructType["X_SESSO"]= StructField("X_SESSO", IntegerType())
+    dictStructType["X_GRADO_URG"]= StructField("X_GRADO_URG", IntegerType())
+    dictStructType["STRING_X_PRESTAZIONE"]= StructField("STRING_X_PRESTAZIONE", StringType())
+    dictStructType["STRING_Y_UE"]= StructField("STRING_Y_UE", StringType())
+    dictStructType["Y_GIORNO_SETTIMANA"]= StructField("Y_GIORNO_SETTIMANA", IntegerType())
+    dictStructType["Y_MESE_ANNO"]= StructField("Y_MESE_ANNO", IntegerType())
+    dictStructType["Y_FASCIA_ORARIA"]= StructField("Y_FASCIA_ORARIA", IntegerType())
+    dictStructType["Y_GIORNI_ALLA_PRENOTAZIONE"]= StructField("Y_GIORNI_ALLA_PRENOTAZIONE", IntegerType())
+        
+    filtered = [val for key, val in dictStructType.items() if key not in arguments_col_to_drop]
+    #print(filtered)
+    input_schema = StructType(filtered)
+    
     return input_schema
     
 # DATA LOADING
@@ -271,11 +276,11 @@ def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, a
     
     file.close()
 
-def quantize(dfraw):
-    my_udf = functions.UserDefinedFunction(convert_y_giorni_alla_prenotazione, types.IntegerType())
-    df = dfraw.withColumnRenamed("Y_GIORNI_ALLA_PRENOTAZIONE", "Y_GIORNI_ALLA_PRENOTAZIONE_OLD")
-    df = df.withColumn("Y_GIORNI_ALLA_PRENOTAZIONE",my_udf(df["Y_GIORNI_ALLA_PRENOTAZIONE_OLD"]))
-    df = df.drop('Y_GIORNI_ALLA_PRENOTAZIONE_OLD')
+def quantize(dfraw, my_udf, colname):
+    colname_old= colname+"_OLD"
+    df = dfraw.withColumnRenamed(colname, colname_old)
+    df = df.withColumn(colname,my_udf(df[colname_old]))
+    df = df.drop(colname_old)
     return df
 
 def get_stringindexer_model_dict(string_argument_col, df):
@@ -415,19 +420,17 @@ def euclidean0_0 (vector1, vector2):
         return: 1. quard distance, 2. euclidean distance
     '''
     quar_distance = 0
-    try:
-        if(len(vector1) != len(vector2)):
-            raise RuntimeWarning("The length of the two vectors are not the same!")
-        zipVector = zip(vector1, vector2)
+    
+    if(len(vector1) != len(vector2)):
+        raise RuntimeWarning("The length of the two vectors are not the same!")
+    zipVector = zip(vector1, vector2)
+
+    for member in zipVector:
+        quar_distance += (member[1] - member[0]) ** 2
+
+    return quar_distance, math.sqrt(quar_distance)
  
-        for member in zipVector:
-            quar_distance += (member[1] - member[0]) ** 2
- 
-        return quar_distance, math.sqrt(quar_distance)
- 
-    except Exception, err:
-        print('WARNING: %s\n' % str(err))
-        return -1, -1
+
  
 def euclidean0_1(vector1, vector2):
     '''calculate the euclidean distance, no numpy
@@ -437,6 +440,9 @@ def euclidean0_1(vector1, vector2):
     dist = [(a - b)**2 for a, b in zip(vector1, vector2)]
     dist = math.sqrt(sum(dist))
     return dist
+    
+def getArgumentsColToDrop():
+    return [ 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
 
 def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc = 1, k_means_num = 100, stage_start="LOAD", stage_stop="TEST"):
 
@@ -458,11 +464,31 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
    
     
     random_seed = 1
-    arguments_col_string = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
-    arguments_col_x = [ 'X_ETA', 'X_SESSO', 'X_GRADO_URG', 'X_PRESTAZIONE']
-    arguments_col_y = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
-    arguments_col = arguments_col_x + arguments_col_y
-            
+    
+    # COLS to ESCLUDE TO SIMPLER MODEL
+    arguments_col_to_drop = getArgumentsColToDrop()
+    
+    # COLS TO TRANSFORM FROM STRING TO INDEX
+    arguments_col_string_all = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
+    arguments_col_string = [x for x in arguments_col_string_all if x[0] not in arguments_col_to_drop and  x[1] not in arguments_col_to_drop ]
+    
+    # COLS THAT DEFINE REQUEST
+    arguments_col_x_all = [ 'X_ETA', 'X_SESSO', 'X_GRADO_URG', 'X_PRESTAZIONE']
+    arguments_col_x = [x for x in arguments_col_x_all if x not in arguments_col_to_drop]
+    
+    # COLS THAT DEFINE FREQUENCY
+    arguments_col_y_all = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+    arguments_col_y = [x for x in arguments_col_y_all if x not in arguments_col_to_drop]
+    
+    # COL TO EXCLUDE FROM ONE HOT ENCODING
+    arguments_col_not_ohe = ['X_ETA']
+    
+    
+    arguments_col_all = arguments_col_x + arguments_col_y
+    arguments_col = [x for x in arguments_col_all if x not in arguments_col_to_drop]
+    
+    print(arguments_col)
+    #quit()
     
     #############
     # LOAD DATA #
@@ -472,25 +498,34 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     test_ds = None
     t1 = datetime.datetime.now()
     if(stage_start == "LOAD"):
-        dfraw = load_from_csv (input_filename, get_input_schema())
+        dfraw = load_from_csv (input_filename, get_input_schema([]))
         
-        # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE
-        dfq = quantize(dfraw)
+        # remove column to
+        for col_to_drop in arguments_col_to_drop:
+            dfraw = dfraw.drop(col_to_drop)
+        
+        
+        # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
+        colname_to_quantize = "Y_GIORNI_ALLA_PRENOTAZIONE"
+        if(not colname_to_quantize in arguments_col_to_drop):
+            my_udf = functions.UserDefinedFunction(convert_y_giorni_alla_prenotazione, types.IntegerType())
+            dfq = quantize(dfraw, my_udf, colname_to_quantize)
+        else:
+            dfq = dfraw
+        
+        # METADATA FOR COLUMN RELOAD
         metadataDict = get_metadata(dfq)
         df = add_metadata(dfq, metadataDict)
-        
         metadata_file_name_dir = base_filename + "-metadata"
         save_metadata(df, metadata_file_name_dir)
         #print(df.schema['X_SESSO'].metadata)
         
         # STRING INDEXER
         indexer_dict = get_stringindexer_model_dict(arguments_col_string, df)
-        #stringindexer_path= "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000-indexer"
-        #indexer_dict = load_stringindexer_model_dict(stringindexer_path)
         dfi = apply_stringindexer_model_dict(arguments_col_string, df, indexer_dict)
         
         # ONE HOT ENCODING
-        ohe_col = ["OHE_"+x for x in arguments_col if not x == 'X_ETA']
+        ohe_col = ["OHE_"+x for x in arguments_col if not x in arguments_col_not_ohe]
         encodersDict= get_onehotencoding_model(arguments_col, ohe_col)
         df_ohe = apply_onehotencoding_model(dfi, encodersDict)
         
@@ -499,6 +534,8 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     
     time_duration_split = (datetime.datetime.now()-t1)
     print('time split: ' + str(datetime.timedelta(seconds=time_duration_split.total_seconds())))
+    
+    
     if( stage_stop == "LOAD"):
         t1 = datetime.datetime.now()
         train_ds.write.parquet(output_train_file_name, mode="overwrite")
@@ -511,13 +548,8 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
             print('Snaphot indexer: ' + string_indexer_path)
             indexer.save(string_indexer_path)
         
-        #if os.path.exists(ohe_path_dir): shutil.rmtree(ohe_path_dir)
-        #print('Snaphot one hot encoder: ' + ohe_path_dir)
-        #ohe_model.save(ohe_path_dir)
-        
         time_duration_split_save = (datetime.datetime.now()-t1)
         print('STOP at : ' + str(stage_stop) + ", save in: " + str(datetime.timedelta(seconds=time_duration_split_save.total_seconds())))
-        
         return train_ds, test_ds, df_ohe, None, None
     
     
