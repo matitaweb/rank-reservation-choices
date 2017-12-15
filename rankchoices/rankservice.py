@@ -31,30 +31,48 @@ app = Flask(__name__)
 @app.route('/', methods=['GET'])
 def default_get():
     rlist = [{ "X_ETA":77, "X_SESSO":1, "X_GRADO_URG":5, "STRING_X_PRESTAZIONE": "12000", "STRING_Y_UE":"18299", "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":10, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":11},{"X_ETA":43, "X_SESSO":2, "X_GRADO_URG":0, "STRING_X_PRESTAZIONE":"3413", "STRING_Y_UE":"17842", "Y_GIORNO_SETTIMANA":6, "Y_MESE_ANNO":3, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":35}]
-    accuracyDictList = predict(rlist)
+    rlist = _filterCols(rlist)
+    accuracyDictList = _predict(rlist)
     return jsonify(accuracyDictList)
 
 @app.route('/predict', methods=['POST'])
 def post_predict():
     rlist = json.loads(request.data)
-    accuracyDictList = predict(rlist)
+    accuracyDictList = _predict(rlist)
     return jsonify(accuracyDictList)
     
-def predict(rlistPar):
+def _filterCols(rlist):
+     # COLS to ESCLUDE TO SIMPLER MODEL
+    arguments_col_to_drop = pipe.getArgumentsColToDrop()
+    
+    resultlist = []
+    
+    for r in rlist:
+        filtered_cols = {key: value for key, value in r.items() if not key in arguments_col_to_drop }
+        resultlist.append(filtered_cols)
+    
+    return resultlist
+
+    
+def _predict(rlistPar):
     t1 = datetime.datetime.now()
-    exceptList = ["X_ETA", "Y_GIORNI_ALLA_PRENOTAZIONE"]
-    validationResult = pipe.validate_with_metadata(rlistPar, metadataDict, exceptList)
-    #print(validationResult)
+    validationResult = pipe.validate_with_metadata(rlistPar, metadataDict, pipe.validate_with_metadata_exceptList())
+    print(validationResult)
     
     rlist = validationResult['valid']
     
     # TRANSFORM JSON QUERY TO DATAFRAME
-    filtered
     dfraw = sqlContext.createDataFrame(rlist, schema=pipe.get_input_schema(pipe.getArgumentsColToDrop()))
     request_col_names = dfraw.columns
     
-    # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE 
-    dfq = pipe.quantize(dfraw)
+    # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
+    colname_to_quantize = "Y_GIORNI_ALLA_PRENOTAZIONE"
+    arguments_col_to_drop = pipe.getArgumentsColToDrop()
+    if(not colname_to_quantize in arguments_col_to_drop):
+        my_udf = functions.UserDefinedFunction(convert_y_giorni_alla_prenotazione, types.IntegerType())
+        dfq = quantize(dfraw, my_udf, colname_to_quantize)
+    else:
+        dfq = dfraw
     
     # ADD DATAFRAME METADATA
     df = pipe.add_metadata(dfq, metadataDict)
@@ -74,7 +92,7 @@ def predict(rlistPar):
     
     predList = kmeans_df_pca.collect()
     #print(kmeans_df_pca.head(1))
-    #wssse = kmeans_model.computeCost(df_pca)
+    wssse = kmeans_model.computeCost(df_pca)
     #print("Within Set Sum of Squared Errors = " + str(wssse))
     
     time_duration_prepare = (datetime.datetime.now()-t1)
@@ -82,8 +100,9 @@ def predict(rlistPar):
     
     t1 = datetime.datetime.now()
     result = {}
-    result['version'] = 1.0.0
+    result['version'] = "1.0.0"
     result['model']="KMEAN:100, PCA:0.1"
+    result['wssse'] = wssse
     accuracyDictList = []
     
     
@@ -111,12 +130,14 @@ def predict(rlistPar):
 
     result['accuracyDictList']= accuracyDictList
     result['status'] ="OK"
+    result['validationResult'] = validationResult
     return result
 
 
 
 if __name__ == '__main__':
     
+    # parsing parameters
     parser = argparse.ArgumentParser(description='Process rank requests.')
     parser.add_argument('-b', '--base_dir_path', type=str, help='-b base dir path ')
     parser.add_argument('-s', '--spark_home_path', type=str, help='-s spark_home path ')
@@ -135,6 +156,7 @@ if __name__ == '__main__':
     
     t1 = datetime.datetime.now()
     findspark.init(spark_home)
+    
     import pyspark
     from pyspark import SparkConf
     from pyspark import SparkContext
@@ -147,9 +169,23 @@ if __name__ == '__main__':
     import pipeline as pipe
 
     
-    arguments_col_string = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
-    arguments_col_x = [ 'X_ETA', 'X_SESSO', 'X_GRADO_URG', 'X_PRESTAZIONE']
-    arguments_col_y = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+     # COLS to ESCLUDE TO SIMPLER MODEL
+    arguments_col_to_drop = pipe.getArgumentsColToDrop()
+    
+    # COLS TO TRANSFORM FROM STRING TO INDEX
+    arguments_col_string = pipe.getArgumentsColString(arguments_col_to_drop)
+    
+    # COLS THAT DEFINE REQUEST
+    arguments_col_x = pipe.getArgumentsColX(arguments_col_to_drop)
+    
+    
+    # COLS THAT DEFINE FREQUENCY
+    arguments_col_y = pipe.getArgumentsColY(arguments_col_to_drop)
+    
+    
+    # COL TO EXCLUDE FROM ONE HOT ENCODING
+    arguments_col_not_ohe = pipe.getArgumentsColNotOHE(arguments_col_to_drop)
+    
     arguments_col = arguments_col_x + arguments_col_y
     
     # LOAD SPARK
@@ -168,19 +204,19 @@ if __name__ == '__main__':
     
     
     # LOAD ONE HOT ENCODING
-    ohe_col = ["OHE_"+x for x in arguments_col if not x == 'X_ETA']
+    ohe_col = ["OHE_"+x for x in arguments_col if not x in arguments_col_not_ohe]
     encodersDict= pipe.get_onehotencoding_model(arguments_col, ohe_col)
+    
     
     # LOAD PCA MODEL
     pca_path_dir =  base_dir+"-pca-model"
     pca_model = PCAModel.load(pca_path_dir)
-    #print(df_ohe.head(1))
-    #print(df_ohe.schema['OHE_Y_FASCIA_ORARIA'].metadata)
-    
+
     
     # LOAD KMEANS MODEL
     model_file_path = base_dir+".kmeans"
     kmeans_model = KMeansModel.load(model_file_path)  # load from file system 
+    
     
     # LOAD FREQUECY DICT
     dict_file_path = base_dir+"-dict.json"

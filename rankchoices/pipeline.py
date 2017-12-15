@@ -44,8 +44,9 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 #10.000
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="LOAD", stage_stop="LOAD")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="PCA")
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="TEST")
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="DICT", stage_stop="TEST")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="KMEANS", stage_stop="KMEANS")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="DICT", stage_stop="DICT")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="TEST", stage_stop="TEST")
 
 #10.000.000
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000.000", stage_start="LOAD", stage_stop="PCA")
@@ -62,18 +63,34 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 """
 
 def get_input_schema(arguments_col_to_drop):
-    dictStructType = {}
-    dictStructType["X_ETA"]= StructField("X_ETA", IntegerType())
-    dictStructType["X_SESSO"]= StructField("X_SESSO", IntegerType())
-    dictStructType["X_GRADO_URG"]= StructField("X_GRADO_URG", IntegerType())
-    dictStructType["STRING_X_PRESTAZIONE"]= StructField("STRING_X_PRESTAZIONE", StringType())
-    dictStructType["STRING_Y_UE"]= StructField("STRING_Y_UE", StringType())
-    dictStructType["Y_GIORNO_SETTIMANA"]= StructField("Y_GIORNO_SETTIMANA", IntegerType())
-    dictStructType["Y_MESE_ANNO"]= StructField("Y_MESE_ANNO", IntegerType())
-    dictStructType["Y_FASCIA_ORARIA"]= StructField("Y_FASCIA_ORARIA", IntegerType())
-    dictStructType["Y_GIORNI_ALLA_PRENOTAZIONE"]= StructField("Y_GIORNI_ALLA_PRENOTAZIONE", IntegerType())
+    filtered = []
+    if(not "X_ETA" in arguments_col_to_drop):
+        filtered.append(StructField("X_ETA", IntegerType()))
         
-    filtered = [val for key, val in dictStructType.items() if key not in arguments_col_to_drop]
+    if(not "X_SESSO" in arguments_col_to_drop):
+        filtered.append(StructField("X_SESSO", IntegerType()))
+        
+    if(not "X_GRADO_URG" in arguments_col_to_drop):
+        filtered.append(StructField("X_GRADO_URG", IntegerType()))
+    
+    if(not "STRING_X_PRESTAZIONE" in arguments_col_to_drop):
+        filtered.append(StructField("STRING_X_PRESTAZIONE", StringType()))
+    
+    if(not "STRING_Y_UE" in arguments_col_to_drop):
+        filtered.append(StructField("STRING_Y_UE", StringType()))
+    
+    if(not "Y_GIORNO_SETTIMANA" in arguments_col_to_drop):
+        filtered.append(StructField("Y_GIORNO_SETTIMANA", IntegerType()))
+    
+    if(not "Y_MESE_ANNO" in arguments_col_to_drop):
+        filtered.append(StructField("Y_MESE_ANNO", IntegerType()))
+    
+    if(not "Y_FASCIA_ORARIA" in arguments_col_to_drop):
+        filtered.append(StructField("Y_FASCIA_ORARIA", IntegerType()))
+    
+    if(not "Y_GIORNI_ALLA_PRENOTAZIONE" in arguments_col_to_drop):
+        filtered.append(StructField("Y_GIORNI_ALLA_PRENOTAZIONE", IntegerType()))
+        
     #print(filtered)
     input_schema = StructType(filtered)
     
@@ -87,7 +104,7 @@ def load_from_csv (filename, input_schema):
 
 def load_from_parquet (filename):
     
-    spark = SparkSession.builder.master("local").appName("Word Count").config("spark.python.profile", "true").getOrCreate()
+    spark = SparkSession.builder.master("local").appName("Rank").config("spark.python.profile", "true").getOrCreate()
     result = spark.read.parquet(filename)
     return result    
     
@@ -311,7 +328,7 @@ def apply_stringindexer_model_dict(string_argument_col, df, indexer_dict):
         df_indexed = stringindexer_model.transform(df_indexed)
         #trasform float index in integer
         meta = df_indexed.schema[outputCol].metadata
-        #print(meta)
+  
         meta['ml_attr']['name']=e[1]
         df_indexed = df_indexed.withColumn(e[1], df_indexed[outputCol].cast(IntegerType()))
         df_indexed = df_indexed.withColumn(e[1], col(e[1]).alias(e[1], metadata=meta))
@@ -385,7 +402,6 @@ def load_metadata(file_name_dir):
         metadataDict[d]=meta
     return metadataDict
         
-
 def validate_with_metadata(rList, metadataDict, exceptList):
     resValidate = {}
     resValidate['valid'] = []
@@ -393,17 +409,7 @@ def validate_with_metadata(rList, metadataDict, exceptList):
     
     for r in rList:
         rejectedCols = {key: value for key, value in r.items() if (not key in exceptList and not str(value) in metadataDict[key]['ml_attr']['vals']) }
-        """
-        for key, value in r.items():
-            if(key in exceptList):
-                continue
-            #v = str(value).decode("utf-8")
-            if (not str(value) in metadataDict[key]['ml_attr']['vals']):
-                print (metadataDict[key]['ml_attr']['vals'])
-                print (value)
-                print ( "")
-                rejectedCols[key]=value
-        """            
+            
         if(len(rejectedCols.keys()) == 0):
             resValidate['valid'].append(r);
             continue
@@ -412,6 +418,11 @@ def validate_with_metadata(rList, metadataDict, exceptList):
         rejectedRow['rejecterCols'] = rejectedCols
         resValidate['rejected'].append(rejectedRow)
     return resValidate
+
+def validate_with_metadata_exceptList():
+    exceptList = ["X_ETA", "Y_GIORNI_ALLA_PRENOTAZIONE"]
+    return exceptList
+
 
 # http://www.codehamster.com/2015/03/09/different-ways-to-calculate-the-euclidean-distance-in-python/
 def euclidean0_0 (vector1, vector2):
@@ -430,8 +441,6 @@ def euclidean0_0 (vector1, vector2):
 
     return quar_distance, math.sqrt(quar_distance)
  
-
- 
 def euclidean0_1(vector1, vector2):
     '''calculate the euclidean distance, no numpy
     input: numpy.arrays or lists
@@ -444,6 +453,44 @@ def euclidean0_1(vector1, vector2):
 def getArgumentsColToDrop():
     return [ 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
 
+def getArgumentsColString(arguments_col_to_drop):
+    arguments_col_string_all = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
+    arguments_col_string = [x for x in arguments_col_string_all if x[0] not in arguments_col_to_drop and  x[1] not in arguments_col_to_drop ]
+    return arguments_col_string
+    
+
+def getArgumentsColX(arguments_col_to_drop):
+    arguments_col_x_all = [ 'X_ETA', 'X_SESSO', 'X_GRADO_URG', 'X_PRESTAZIONE']
+    arguments_col_x = [x for x in arguments_col_x_all if x not in arguments_col_to_drop]
+    return arguments_col_x
+
+def getArgumentsColY(arguments_col_to_drop):
+    arguments_col_y_all = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+    arguments_col_y = [x for x in arguments_col_y_all if x not in arguments_col_to_drop]
+    return arguments_col_y
+
+def getArgumentsColNotOHE(arguments_col_to_drop):
+    arguments_col_ohe_all = ['X_ETA']
+    arguments_col_ohe = [x for x in arguments_col_ohe_all if x not in arguments_col_to_drop]
+    return arguments_col_ohe
+
+def save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc, tot_col, wssse):
+    
+    k_pca = int(tot_col*k_pca_perc/100)
+    
+    model_info = {}
+    model_info['num_custer'] = k_means_num
+    model_info['tot_col'] = tot_col
+    model_info['k_pca'] = k_pca
+    model_info['k_pca_perc'] = k_pca_perc
+    model_info['wssse'] = wssse
+    model_info['kmeans_centers'] = kmeans_centers
+    
+    if os.path.exists(model_info_filename): os.remove(model_info_filename)
+    with open(model_info_filename, 'wb') as f:
+        json.dump(model_info, codecs.getwriter('utf-8')(f), ensure_ascii=False)
+
+
 def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc = 1, k_means_num = 100, stage_start="LOAD", stage_stop="TEST"):
 
     # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
@@ -452,6 +499,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     input_filename          = base_filename+".csv"
     
     string_indexer_path_dir = base_filename + "-indexer"
+    df_indexed_file_name = base_filename+"-df-indexed.parquet"
     output_train_file_name = base_filename+"-train.parquet"
     output_test_file_name  = base_filename+"-test.parquet"
     
@@ -459,8 +507,9 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     output_pca_train_filename = base_filename+"-pca-train.parquet"
     output_pca_test_filename  = base_filename+"-pca-test.parquet"
     
-    
     cluster_freq_dict_filename = base_filename+"-dict.json"
+    
+    model_info_filename = base_filename+"-model-info.json"
    
     
     random_seed = 1
@@ -469,27 +518,26 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     arguments_col_to_drop = getArgumentsColToDrop()
     
     # COLS TO TRANSFORM FROM STRING TO INDEX
-    arguments_col_string_all = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
-    arguments_col_string = [x for x in arguments_col_string_all if x[0] not in arguments_col_to_drop and  x[1] not in arguments_col_to_drop ]
+    arguments_col_string = getArgumentsColString(arguments_col_to_drop)
+    #arguments_col_string = [x for x in arguments_col_string_all if x[0] not in arguments_col_to_drop and  x[1] not in arguments_col_to_drop ]
     
     # COLS THAT DEFINE REQUEST
-    arguments_col_x_all = [ 'X_ETA', 'X_SESSO', 'X_GRADO_URG', 'X_PRESTAZIONE']
-    arguments_col_x = [x for x in arguments_col_x_all if x not in arguments_col_to_drop]
+    arguments_col_x = getArgumentsColX(arguments_col_to_drop)
+    
     
     # COLS THAT DEFINE FREQUENCY
-    arguments_col_y_all = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
-    arguments_col_y = [x for x in arguments_col_y_all if x not in arguments_col_to_drop]
+    arguments_col_y = getArgumentsColY(arguments_col_to_drop)
+    
     
     # COL TO EXCLUDE FROM ONE HOT ENCODING
-    arguments_col_not_ohe = ['X_ETA']
+    arguments_col_not_ohe = getArgumentsColNotOHE(arguments_col_to_drop)
     
     
-    arguments_col_all = arguments_col_x + arguments_col_y
-    arguments_col = [x for x in arguments_col_all if x not in arguments_col_to_drop]
+    arguments_col = arguments_col_x + arguments_col_y
+    #arguments_col = [x for x in arguments_col_all if x not in arguments_col_to_drop]
     
-    print(arguments_col)
-    #quit()
-    
+    print("COLUMNS: " + str(arguments_col))
+
     #############
     # LOAD DATA #
     #############
@@ -502,7 +550,8 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         
         # remove column to
         for col_to_drop in arguments_col_to_drop:
-            dfraw = dfraw.drop(col_to_drop)
+            if(col_to_drop in dfraw.columns):
+                dfraw = dfraw.drop(col_to_drop)
         
         
         # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
@@ -540,6 +589,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         t1 = datetime.datetime.now()
         train_ds.write.parquet(output_train_file_name, mode="overwrite")
         test_ds.write.parquet(output_test_file_name, mode="overwrite")
+        dfi.write.parquet(df_indexed_file_name, mode="overwrite")
         print('Snapshot train-set: ' + output_train_file_name)
         print('Snapshot test-set: ' + output_test_file_name)
         if os.path.exists(string_indexer_path_dir): shutil.rmtree(string_indexer_path_dir)
@@ -550,7 +600,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         
         time_duration_split_save = (datetime.datetime.now()-t1)
         print('STOP at : ' + str(stage_stop) + ", save in: " + str(datetime.timedelta(seconds=time_duration_split_save.total_seconds())))
-        return train_ds, test_ds, df_ohe, None, None
+        return train_ds, test_ds, df_ohe, dfi, None
     
     
     #######
@@ -604,7 +654,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
             train_ds_pca = load_from_parquet (output_pca_train_filename)
             test_ds_pca = load_from_parquet (output_pca_test_filename)
             
-        kmeans = KMeans().setK(k_means_num).setSeed(1).setFeaturesCol(pcaOutputCol)
+        kmeans = KMeans().setK(k_means_num).setSeed(random_seed).setFeaturesCol(pcaOutputCol)
         kmeans_model_fitted = kmeans.fit(train_ds_pca)
         file_name_dir_kmeans = base_filename+".kmeans"
         if os.path.exists(file_name_dir_kmeans): shutil.rmtree(file_name_dir_kmeans)
@@ -645,7 +695,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         
     time_duration_freq_dict = (datetime.datetime.now()-t1)
     print('time freq dict: ' + str(datetime.timedelta(seconds=time_duration_freq_dict.total_seconds())))
-    if( stage_stop == "DICT"):
+    if(stage_stop == "DICT"):
         print('STOP at : ' + str(stage_stop))
         return kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, None, None
     
@@ -653,17 +703,21 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     #################
     # TEST ACCURACY #
     #################
+    
     t1 = datetime.datetime.now()
     if(stage_start == "LOAD" or stage_start == "PCA" or stage_start=="KMEANS" or stage_start=="DICT" or stage_start=="TEST"):
         if(stage_start == 'TEST'):
             cluster_freq_dict = load_cluster_freq_dict(cluster_freq_dict_filename)
             kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
             kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
+            file_name_dir_kmeans = base_filename+".kmeans"
+            kmeans_model_fitted = KMeansModel.load(file_name_dir_kmeans)  # load from file system 
         accuracyDictList = test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict)
         accuracyMeanList = [e['mean_acc'] for e in accuracyDictList]
         mean_acc= np.mean(accuracyMeanList)
     time_duration_test = (datetime.datetime.now()-t1)
     print('time test: ' + str(datetime.timedelta(seconds=time_duration_test.total_seconds())))
+    
     
     ###################
     # REPORT ACCURACY #
@@ -676,6 +730,15 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     if os.path.exists(report_filename): os.remove(report_filename)
     tot_col = len(kmeans_train_ds.head(1)[0]['features'])
     k_pca = int(tot_col*k_pca_perc/100)
+    
+    # Evaluate clustering by computing Within Set Sum of Squared Errors.
+    wssse = kmeans_model_fitted.computeCost(kmeans_train_ds)
+    print("Within Set Sum of Squared Errors = " + str(wssse))
+    
+    # save json model info
+    kmeans_centers = [str(center) for center in kmeans_model_fitted.clusterCenters()]
+    save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc, tot_col, wssse)
+    
     write_report(report_filename, tot_col, k_means_num, arguments_col_y, accuracyDictList, accuracyMeanList, time_duration_split, time_duration_pca, time_duration_kmean, time_duration_test, k_pca=k_pca, k_pca_perc=k_pca_perc, split=split, split_col=split_col)
     print('Snapshot report test-set: ' + report_filename)
     
