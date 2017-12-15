@@ -29,12 +29,11 @@ import pyspark.sql.types as types
 
 """
 import rankchoices.pipeline as pipe
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "/dati/data/light_r100.000.000", stage_start="LOAD", stage_stop="LOAD")
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="LOAD", stage_stop="LOAD")
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="PCA")
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="KMEANS", stage_stop="KMEANS")
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="DICT", stage_stop="DICT")
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="TEST", stage_stop="TEST")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="LOAD", stage_stop="LOAD")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="PCA", stage_stop="PCA")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="KMEANS", stage_stop="KMEANS")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="DICT", stage_stop="DICT")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="TEST", stage_stop="TEST")
 
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000.000")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_start="KMEANS")
@@ -135,7 +134,7 @@ def get_cluster_freq_dict(kmeans_train_ds, arguments_col_y):
 
     for ar in arguments_col_y:
         ar_group = kmeans_train_ds.groupBy("prediction", ar).agg(count("*").alias("count")).collect()
-        
+        print("FREQU:" + ar)
         # make dictionary
         for r in ar_group :
             c = r['prediction']
@@ -226,24 +225,6 @@ def load_cluster_freq_dict(file_name_dir):
         d = json.load(json_data)
         return d
     
-    """
-    cluster_freq_dict =  {}
-    spark = SparkSession.builder.master("local").appName("Word Count").config("spark.python.profile", "true").getOrCreate()
-    for f in os.listdir(file_name_dir) :
-        if os.path.isfile(os.path.join(file_name_dir, f)):
-            df = spark.read.csv(os.path.join(file_name_dir,f))
-            fname_split = f.split(".")
-            c= int(fname_split[0])
-            col_group_name = str(fname_split[1])
-            
-            if not c in cluster_freq_dict:
-                cluster_freq_dict[c]={}
-                
-            cluster_freq_dict[c][col_group_name]=df
-            
-    return cluster_freq_dict
-    """
-
 def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, accuracyMeanList, time_duration_split, time_duration_pca, time_duration_kmean, time_duration_test,  k_pca="-", k_pca_perc="-", split="-", split_col="-"):
     file = open(filename, 'w')
     file.write('filename: ' + str(filename)+'\n')
@@ -334,18 +315,18 @@ def apply_stringindexer_model_dict(string_argument_col, df, indexer_dict):
         df_indexed = df_indexed.withColumn(e[1], col(e[1]).alias(e[1], metadata=meta))
     return df_indexed
 
-def get_onehotencoding_model(arguments_col, ohe_col):
-    ohe_col_pair = zip([x for x in arguments_col if not x == 'X_ETA'], ohe_col)
+def get_onehotencoding_model(arguments_col, ohe_col, arguments_col_not_ohe):
+    ohe_col_pair = zip([x for x in arguments_col if not x in arguments_col_not_ohe], ohe_col)
     encodersDict = {}
     for x in ohe_col_pair:
         ohe=OneHotEncoder(dropLast=False, inputCol=x[0], outputCol=x[1])
         encodersDict[x[1]]= ohe
     return encodersDict
 
-def apply_onehotencoding_model(df, encoderDict):
+def apply_onehotencoding_model(df, arguments_col_not_ohe, encoderDict, outputCol="features"):
     ohe_col = [k for k,x in encoderDict.items()]
     encoders = [x for k, x in encoderDict.items()]
-    assemblerOHE = VectorAssembler(inputCols=['X_ETA']+ohe_col, outputCol="features")
+    assemblerOHE = VectorAssembler(inputCols=arguments_col_not_ohe+ohe_col, outputCol=outputCol )
     pipeline = Pipeline(stages=encoders+[assemblerOHE])
     ohe_model=pipeline.fit(df)
     df_ohe=ohe_model.transform(df)
@@ -441,6 +422,7 @@ def euclidean0_0 (vector1, vector2):
 
     return quar_distance, math.sqrt(quar_distance)
  
+ 
 def euclidean0_1(vector1, vector2):
     '''calculate the euclidean distance, no numpy
     input: numpy.arrays or lists
@@ -449,9 +431,11 @@ def euclidean0_1(vector1, vector2):
     dist = [(a - b)**2 for a, b in zip(vector1, vector2)]
     dist = math.sqrt(sum(dist))
     return dist
+  
     
 def getArgumentsColToDrop():
     return [ 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+
 
 def getArgumentsColString(arguments_col_to_drop):
     arguments_col_string_all = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
@@ -499,9 +483,9 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     input_filename          = base_filename+".csv"
     
     string_indexer_path_dir = base_filename + "-indexer"
-    df_indexed_file_name = base_filename+"-df-indexed.parquet"
-    output_train_file_name = base_filename+"-train.parquet"
-    output_test_file_name  = base_filename+"-test.parquet"
+    df_indexed_file_name    = base_filename+"-df-indexed.parquet"
+    output_train_file_name  = base_filename+"-train.parquet"
+    output_test_file_name   = base_filename+"-test.parquet"
     
     pca_path_dir =  base_filename+"-pca-model"
     output_pca_train_filename = base_filename+"-pca-train.parquet"
@@ -519,24 +503,16 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     
     # COLS TO TRANSFORM FROM STRING TO INDEX
     arguments_col_string = getArgumentsColString(arguments_col_to_drop)
-    #arguments_col_string = [x for x in arguments_col_string_all if x[0] not in arguments_col_to_drop and  x[1] not in arguments_col_to_drop ]
-    
-    # COLS THAT DEFINE REQUEST
-    arguments_col_x = getArgumentsColX(arguments_col_to_drop)
-    
     
     # COLS THAT DEFINE FREQUENCY
-    arguments_col_y = getArgumentsColY(arguments_col_to_drop)
-    
+    arguments_col_y = getArgumentsColY([])
     
     # COL TO EXCLUDE FROM ONE HOT ENCODING
     arguments_col_not_ohe = getArgumentsColNotOHE(arguments_col_to_drop)
     
-    
-    arguments_col = arguments_col_x + arguments_col_y
-    #arguments_col = [x for x in arguments_col_all if x not in arguments_col_to_drop]
-    
-    print("COLUMNS: " + str(arguments_col))
+    # COLUMNS TO USE IN CLUSTERING
+    arguments_col = getArgumentsColX(arguments_col_to_drop) + getArgumentsColY(arguments_col_to_drop)
+    print("COLUMNS TO USE IN CLUSTERING: " + str(arguments_col))
 
     #############
     # LOAD DATA #
@@ -548,11 +524,12 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     if(stage_start == "LOAD"):
         dfraw = load_from_csv (input_filename, get_input_schema([]))
         
-        # remove column to
+        # remove column to exclude
+        """
         for col_to_drop in arguments_col_to_drop:
             if(col_to_drop in dfraw.columns):
                 dfraw = dfraw.drop(col_to_drop)
-        
+        """
         
         # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
         colname_to_quantize = "Y_GIORNI_ALLA_PRENOTAZIONE"
@@ -575,8 +552,9 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         
         # ONE HOT ENCODING
         ohe_col = ["OHE_"+x for x in arguments_col if not x in arguments_col_not_ohe]
-        encodersDict= get_onehotencoding_model(arguments_col, ohe_col)
-        df_ohe = apply_onehotencoding_model(dfi, encodersDict)
+        featureOutputCol="features"
+        encodersDict= get_onehotencoding_model(arguments_col, ohe_col, arguments_col_not_ohe)
+        df_ohe = apply_onehotencoding_model(dfi, arguments_col_not_ohe, encodersDict, featureOutputCol)
         
         # TRAINING / TEST SPLIT
         (train_ds, test_ds) = df_ohe.randomSplit(split, random_seed)

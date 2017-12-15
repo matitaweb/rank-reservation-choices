@@ -31,7 +31,7 @@ app = Flask(__name__)
 @app.route('/', methods=['GET'])
 def default_get():
     rlist = [{ "X_ETA":77, "X_SESSO":1, "X_GRADO_URG":5, "STRING_X_PRESTAZIONE": "12000", "STRING_Y_UE":"18299", "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":10, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":11},{"X_ETA":43, "X_SESSO":2, "X_GRADO_URG":0, "STRING_X_PRESTAZIONE":"3413", "STRING_Y_UE":"17842", "Y_GIORNO_SETTIMANA":6, "Y_MESE_ANNO":3, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":35}]
-    rlist = _filterCols(rlist)
+    #rlist = _filterCols(rlist)
     accuracyDictList = _predict(rlist)
     return jsonify(accuracyDictList)
 
@@ -44,13 +44,10 @@ def post_predict():
 def _filterCols(rlist):
      # COLS to ESCLUDE TO SIMPLER MODEL
     arguments_col_to_drop = pipe.getArgumentsColToDrop()
-    
     resultlist = []
-    
     for r in rlist:
         filtered_cols = {key: value for key, value in r.items() if not key in arguments_col_to_drop }
         resultlist.append(filtered_cols)
-    
     return resultlist
 
     
@@ -62,7 +59,7 @@ def _predict(rlistPar):
     rlist = validationResult['valid']
     
     # TRANSFORM JSON QUERY TO DATAFRAME
-    dfraw = sqlContext.createDataFrame(rlist, schema=pipe.get_input_schema(pipe.getArgumentsColToDrop()))
+    dfraw = sqlContext.createDataFrame(rlist, schema=pipe.get_input_schema([]))
     request_col_names = dfraw.columns
     
     # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
@@ -81,7 +78,9 @@ def _predict(rlistPar):
     dfi = pipe.apply_stringindexer_model_dict(arguments_col_string, df, indexer_dict)
     
     # APPLY ONE HOT ENCODING
-    df_ohe = pipe.apply_onehotencoding_model(dfi, encodersDict)
+    featureOutputCol = "features"
+    arguments_col_not_ohe = pipe.getArgumentsColNotOHE(arguments_col_to_drop)
+    df_ohe = pipe.apply_onehotencoding_model(dfi, arguments_col_not_ohe, encodersDict, featureOutputCol)
     
     #APPLY PCA
     df_pca = pca_model.transform(df_ohe)
@@ -175,18 +174,14 @@ if __name__ == '__main__':
     # COLS TO TRANSFORM FROM STRING TO INDEX
     arguments_col_string = pipe.getArgumentsColString(arguments_col_to_drop)
     
-    # COLS THAT DEFINE REQUEST
-    arguments_col_x = pipe.getArgumentsColX(arguments_col_to_drop)
-    
-    
     # COLS THAT DEFINE FREQUENCY
-    arguments_col_y = pipe.getArgumentsColY(arguments_col_to_drop)
-    
+    arguments_col_y = pipe.getArgumentsColY([])
     
     # COL TO EXCLUDE FROM ONE HOT ENCODING
     arguments_col_not_ohe = pipe.getArgumentsColNotOHE(arguments_col_to_drop)
     
-    arguments_col = arguments_col_x + arguments_col_y
+    # COLUMNS TO USE IN CLUSTERING
+    arguments_col = pipe.getArgumentsColX(arguments_col_to_drop) + pipe.getArgumentsColY(arguments_col_to_drop)
     
     # LOAD SPARK
     spark = SparkSession.builder.master("local").appName("Rank").config("spark.python.profile", "true").getOrCreate()
@@ -205,7 +200,7 @@ if __name__ == '__main__':
     
     # LOAD ONE HOT ENCODING
     ohe_col = ["OHE_"+x for x in arguments_col if not x in arguments_col_not_ohe]
-    encodersDict= pipe.get_onehotencoding_model(arguments_col, ohe_col)
+    encodersDict= pipe.get_onehotencoding_model(arguments_col, ohe_col, arguments_col_not_ohe)
     
     
     # LOAD PCA MODEL
