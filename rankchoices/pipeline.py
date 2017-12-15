@@ -434,7 +434,7 @@ def euclidean0_1(vector1, vector2):
   
     
 def getArgumentsColToDrop():
-    return [ 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+    return [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
 
 
 def getArgumentsColString(arguments_col_to_drop):
@@ -502,7 +502,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     arguments_col_to_drop = getArgumentsColToDrop()
     
     # COLS TO TRANSFORM FROM STRING TO INDEX
-    arguments_col_string = getArgumentsColString(arguments_col_to_drop)
+    arguments_col_string = getArgumentsColString([])
     
     # COLS THAT DEFINE FREQUENCY
     arguments_col_y = getArgumentsColY([])
@@ -525,19 +525,12 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         dfraw = load_from_csv (input_filename, get_input_schema([]))
         
         # remove column to exclude
-        """
-        for col_to_drop in arguments_col_to_drop:
-            if(col_to_drop in dfraw.columns):
-                dfraw = dfraw.drop(col_to_drop)
-        """
-        
+
         # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
         colname_to_quantize = "Y_GIORNI_ALLA_PRENOTAZIONE"
-        if(not colname_to_quantize in arguments_col_to_drop):
-            my_udf = functions.UserDefinedFunction(convert_y_giorni_alla_prenotazione, types.IntegerType())
-            dfq = quantize(dfraw, my_udf, colname_to_quantize)
-        else:
-            dfq = dfraw
+        my_udf = functions.UserDefinedFunction(convert_y_giorni_alla_prenotazione, types.IntegerType())
+        dfq = quantize(dfraw, my_udf, colname_to_quantize)
+        
         
         # METADATA FOR COLUMN RELOAD
         metadataDict = get_metadata(dfq)

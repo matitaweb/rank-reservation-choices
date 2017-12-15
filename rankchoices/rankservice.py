@@ -10,6 +10,7 @@ import argparse
 
 
 
+
 # to calculate euclidean distance
 #from scipy.spatial import distance
 
@@ -64,12 +65,8 @@ def _predict(rlistPar):
     
     # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
     colname_to_quantize = "Y_GIORNI_ALLA_PRENOTAZIONE"
-    arguments_col_to_drop = pipe.getArgumentsColToDrop()
-    if(not colname_to_quantize in arguments_col_to_drop):
-        my_udf = functions.UserDefinedFunction(convert_y_giorni_alla_prenotazione, types.IntegerType())
-        dfq = quantize(dfraw, my_udf, colname_to_quantize)
-    else:
-        dfq = dfraw
+    my_udf = pyspark.sql.functions.UserDefinedFunction(pipe.convert_y_giorni_alla_prenotazione, pyspark.sql.types.IntegerType())
+    dfq = pipe.quantize(dfraw, my_udf, colname_to_quantize)
     
     # ADD DATAFRAME METADATA
     df = pipe.add_metadata(dfq, metadataDict)
@@ -79,6 +76,7 @@ def _predict(rlistPar):
     
     # APPLY ONE HOT ENCODING
     featureOutputCol = "features"
+    arguments_col_to_drop = pipe.getArgumentsColToDrop()
     arguments_col_not_ohe = pipe.getArgumentsColNotOHE(arguments_col_to_drop)
     df_ohe = pipe.apply_onehotencoding_model(dfi, arguments_col_not_ohe, encodersDict, featureOutputCol)
     
@@ -172,7 +170,7 @@ if __name__ == '__main__':
     arguments_col_to_drop = pipe.getArgumentsColToDrop()
     
     # COLS TO TRANSFORM FROM STRING TO INDEX
-    arguments_col_string = pipe.getArgumentsColString(arguments_col_to_drop)
+    arguments_col_string = pipe.getArgumentsColString([])
     
     # COLS THAT DEFINE FREQUENCY
     arguments_col_y = pipe.getArgumentsColY([])
