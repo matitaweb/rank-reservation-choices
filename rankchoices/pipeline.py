@@ -629,7 +629,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         if(stage_start == 'KMEANS'):
             train_ds_pca = load_from_parquet (output_pca_train_filename)
             test_ds_pca = load_from_parquet (output_pca_test_filename)
-            print ("TRAIN SIZE: " + train_ds_pca.count())
+            print ("TRAIN SIZE: " + str(train_ds_pca.count()))
             
         kmeans = KMeans().setK(k_means_num).setSeed(random_seed).setFeaturesCol(pcaOutputCol)
         kmeans_model_fitted = kmeans.fit(train_ds_pca)
