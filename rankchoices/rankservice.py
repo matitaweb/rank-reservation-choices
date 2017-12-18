@@ -151,6 +151,11 @@ if __name__ == '__main__':
     else:
         spark_home = "/home/ubuntu/workspace/spark-2.2.1-bin-hadoop2.7"
     
+    
+    if not os.path.exists(spark_home): 
+        print("ERROR NOT EXIST spark_home: " + spark_home)
+        exit()
+    
     t1 = datetime.datetime.now()
     findspark.init(spark_home)
     
