@@ -51,7 +51,7 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000.000", stage_start="LOAD", stage_stop="PCA")
 
 #100.000.000
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000.000", stage_start="LOAD", stage_stop="LOAD")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "/dati/data/light_r300.000.000", stage_start="LOAD", stage_stop="LOAD")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000.000", stage_start="PCA", stage_stop="PCA")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000.000", stage_start="KMEANS", stage_stop="KMEANS")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="DICT", stage_stop="DICT")
@@ -541,6 +541,12 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         
         # STRING INDEXER
         indexer_dict = get_stringindexer_model_dict(arguments_col_string, df)
+        if os.path.exists(string_indexer_path_dir): shutil.rmtree(string_indexer_path_dir)
+        for k,indexer in indexer_dict.items():
+            string_indexer_path = os.path.join(string_indexer_path_dir,k)
+            print('Snaphot indexer: ' + string_indexer_path)
+            indexer.save(string_indexer_path)
+            
         dfi = apply_stringindexer_model_dict(arguments_col_string, df, indexer_dict)
         
         # ONE HOT ENCODING
@@ -558,17 +564,12 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     
     if( stage_stop == "LOAD"):
         t1 = datetime.datetime.now()
+        
         train_ds.write.parquet(output_train_file_name, mode="overwrite")
         test_ds.write.parquet(output_test_file_name, mode="overwrite")
         dfi.write.parquet(df_indexed_file_name, mode="overwrite")
         print('Snapshot train-set: ' + output_train_file_name)
         print('Snapshot test-set: ' + output_test_file_name)
-        if os.path.exists(string_indexer_path_dir): shutil.rmtree(string_indexer_path_dir)
-        for k,indexer in indexer_dict.items():
-            string_indexer_path = os.path.join(string_indexer_path_dir,k)
-            print('Snaphot indexer: ' + string_indexer_path)
-            indexer.save(string_indexer_path)
-        
         time_duration_split_save = (datetime.datetime.now()-t1)
         print('STOP at : ' + str(stage_stop) + ", save in: " + str(datetime.timedelta(seconds=time_duration_split_save.total_seconds())))
         return train_ds, test_ds, df_ohe, dfi, None
@@ -591,7 +592,11 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         tot_col = len(train_ds.head(1)[0]['features'])
         k_pca = int(tot_col*k_pca_perc/100)
         print("pca tot_col: " + str(tot_col) + " reduce to: " + str(k_pca) )
+        
         pca_model = get_pca_model(k_pca, train_ds, pcaInputCol, pcaOutputCol)
+        if os.path.exists(pca_path_dir): shutil.rmtree(pca_path_dir)
+        pca_model.save(pca_path_dir)
+        
         train_ds_pca = pca_model.transform(train_ds)
         test_ds_pca = pca_model.transform(test_ds)
         
@@ -599,10 +604,10 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     print('time pca: ' + str(datetime.timedelta(seconds=time_duration_pca.total_seconds())))
     if( stage_stop == "PCA"):
         t1 = datetime.datetime.now()
+        
         train_ds_pca.write.parquet(output_pca_train_filename, mode="overwrite")
         test_ds_pca.write.parquet(output_pca_test_filename, mode="overwrite")
-        if os.path.exists(pca_path_dir): shutil.rmtree(pca_path_dir)
-        pca_model.save(pca_path_dir)
+        
         time_duration_pca_save = (datetime.datetime.now()-t1)
         print('STOP at : ' + str(stage_stop) + ", save in: " + str(datetime.timedelta(seconds=time_duration_pca_save.total_seconds())))
         print('Snapshot pca train-set: ' + output_pca_train_filename)
@@ -624,9 +629,11 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         if(stage_start == 'KMEANS'):
             train_ds_pca = load_from_parquet (output_pca_train_filename)
             test_ds_pca = load_from_parquet (output_pca_test_filename)
+            print ("TRAIN SIZE: " + train_ds_pca.count())
             
         kmeans = KMeans().setK(k_means_num).setSeed(random_seed).setFeaturesCol(pcaOutputCol)
         kmeans_model_fitted = kmeans.fit(train_ds_pca)
+        
         file_name_dir_kmeans = base_filename+".kmeans"
         if os.path.exists(file_name_dir_kmeans): shutil.rmtree(file_name_dir_kmeans)
         kmeans_model_fitted.save(file_name_dir_kmeans)
@@ -658,7 +665,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         if(stage_start == 'DICT'):
             kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
             kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
-            
+        
         frequency_dict = get_cluster_freq_dict(kmeans_train_ds, arguments_col_y)
         cluster_freq_dict = build_cluster_freq_dict(frequency_dict)
         save_cluster_freq_dict(cluster_freq_dict, cluster_freq_dict_filename)
