@@ -7,6 +7,7 @@ import findspark
 from numpy import array
 from math import sqrt
 import argparse
+from rank_utils import RankConfig
 
 
 
@@ -23,8 +24,12 @@ KMeansModel.computeCost
 da usare per calcolare la distanza dal centro del cluster e capire per poi usarlo nella 
 normalizzazione del calcolo del ranking
 
+
+python rankservice.py -b "/dati/data/light_r300.000.000" -s "/root/spark-2.2.1-bin-hadoop2.7"
 """
 
+# CONFIGURATION
+rankConfig = RankConfig();
 
 
 app = Flask(__name__)
@@ -44,7 +49,7 @@ def post_predict():
     
 def _filterCols(rlist):
      # COLS to ESCLUDE TO SIMPLER MODEL
-    arguments_col_to_drop = pipe.getArgumentsColToDrop()
+    arguments_col_to_drop = rankConfig.getArgumentsColToDrop()
     resultlist = []
     for r in rlist:
         filtered_cols = {key: value for key, value in r.items() if not key in arguments_col_to_drop }
@@ -60,7 +65,7 @@ def _predict(rlistPar):
     rlist = validationResult['valid']
     
     # TRANSFORM JSON QUERY TO DATAFRAME
-    dfraw = sqlContext.createDataFrame(rlist, schema=pipe.get_input_schema([]))
+    dfraw = sqlContext.createDataFrame(rlist, schema=rankConfig.get_input_schema([]))
     request_col_names = dfraw.columns
     
     # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
@@ -171,20 +176,22 @@ if __name__ == '__main__':
     import pipeline as pipe
 
     
-     # COLS to ESCLUDE TO SIMPLER MODEL
-    arguments_col_to_drop = pipe.getArgumentsColToDrop()
+    
+    
+    # COLS to ESCLUDE TO SIMPLER MODEL
+    arguments_col_to_drop = rankConfig.getArgumentsColToDrop()
     
     # COLS TO TRANSFORM FROM STRING TO INDEX
-    arguments_col_string = pipe.getArgumentsColString([])
+    arguments_col_string = rankConfig.getArgumentsColString([])
     
     # COLS THAT DEFINE FREQUENCY
-    arguments_col_y = pipe.getArgumentsColY([])
+    arguments_col_y = rankConfig.getArgumentsColY([])
     
     # COL TO EXCLUDE FROM ONE HOT ENCODING
-    arguments_col_not_ohe = pipe.getArgumentsColNotOHE(arguments_col_to_drop)
+    arguments_col_not_ohe = rankConfig.getArgumentsColNotOHE(arguments_col_to_drop)
     
     # COLUMNS TO USE IN CLUSTERING
-    arguments_col = pipe.getArgumentsColX(arguments_col_to_drop) + pipe.getArgumentsColY(arguments_col_to_drop)
+    arguments_col = rankConfig.getArgumentsColX(arguments_col_to_drop) + rankConfig.getArgumentsColY(arguments_col_to_drop)
     
     # LOAD SPARK
     spark = SparkSession.builder.master("local").appName("Rank").config("spark.python.profile", "true").getOrCreate()

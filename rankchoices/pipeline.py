@@ -18,6 +18,7 @@ from pyspark.sql.types import StructType
 from pyspark.sql.types import StructField
 from pyspark.sql import SQLContext
 from pyspark.sql import SparkSession
+from rank_utils import RankConfig
 
 
 import pandas as pd
@@ -40,6 +41,8 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_start="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_stop="PCA")
 
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/10k", stage_start="LOAD", stage_stop="LOAD")
+
 #10.000
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="LOAD", stage_stop="LOAD")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="PCA", stage_stop="PCA")
@@ -61,39 +64,7 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 
 """
 
-def get_input_schema(arguments_col_to_drop):
-    filtered = []
-    if(not "X_ETA" in arguments_col_to_drop):
-        filtered.append(StructField("X_ETA", IntegerType()))
-        
-    if(not "X_SESSO" in arguments_col_to_drop):
-        filtered.append(StructField("X_SESSO", IntegerType()))
-        
-    if(not "X_GRADO_URG" in arguments_col_to_drop):
-        filtered.append(StructField("X_GRADO_URG", IntegerType()))
-    
-    if(not "STRING_X_PRESTAZIONE" in arguments_col_to_drop):
-        filtered.append(StructField("STRING_X_PRESTAZIONE", StringType()))
-    
-    if(not "STRING_Y_UE" in arguments_col_to_drop):
-        filtered.append(StructField("STRING_Y_UE", StringType()))
-    
-    if(not "Y_GIORNO_SETTIMANA" in arguments_col_to_drop):
-        filtered.append(StructField("Y_GIORNO_SETTIMANA", IntegerType()))
-    
-    if(not "Y_MESE_ANNO" in arguments_col_to_drop):
-        filtered.append(StructField("Y_MESE_ANNO", IntegerType()))
-    
-    if(not "Y_FASCIA_ORARIA" in arguments_col_to_drop):
-        filtered.append(StructField("Y_FASCIA_ORARIA", IntegerType()))
-    
-    if(not "Y_GIORNI_ALLA_PRENOTAZIONE" in arguments_col_to_drop):
-        filtered.append(StructField("Y_GIORNI_ALLA_PRENOTAZIONE", IntegerType()))
-        
-    #print(filtered)
-    input_schema = StructType(filtered)
-    
-    return input_schema
+
     
 # DATA LOADING
 def load_from_csv (filename, input_schema):
@@ -146,9 +117,6 @@ def get_cluster_freq_dict(kmeans_train_ds, arguments_col_y):
     #print("END EXTRACT DATA FROM DATAFRAME")
     
 def build_cluster_freq_dict(frequency_dict):
-    
-    #spark = SparkSession.builder.master("local").appName("Word Count").config("spark.python.profile", "true").getOrCreate()
-    #sqlContext = SQLContext(spark)
     
     cluster_freq_dict = {}
     # make dataframes
@@ -432,11 +400,8 @@ def euclidean0_1(vector1, vector2):
     dist = math.sqrt(sum(dist))
     return dist
   
-    
-def getArgumentsColToDrop():
-    return [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
 
-
+"""
 def getArgumentsColString(arguments_col_to_drop):
     arguments_col_string_all = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
     arguments_col_string = [x for x in arguments_col_string_all if x[0] not in arguments_col_to_drop and  x[1] not in arguments_col_to_drop ]
@@ -457,6 +422,7 @@ def getArgumentsColNotOHE(arguments_col_to_drop):
     arguments_col_ohe_all = ['X_ETA']
     arguments_col_ohe = [x for x in arguments_col_ohe_all if x not in arguments_col_to_drop]
     return arguments_col_ohe
+"""
 
 def save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc, tot_col, wssse):
     
@@ -500,21 +466,23 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     
     random_seed = 1
     
+    rankConfig = RankConfig();
+    
     # COLS to ESCLUDE TO SIMPLER MODEL
-    arguments_col_to_drop = getArgumentsColToDrop()
+    arguments_col_to_drop = rankConfig.getArgumentsColToDrop()
     
     # COLS TO TRANSFORM FROM STRING TO INDEX
-    arguments_col_string = getArgumentsColString([])
+    arguments_col_string = rankConfig.getArgumentsColString([])
     
     # COLS THAT DEFINE FREQUENCY
-    arguments_col_y = getArgumentsColY([])
+    arguments_col_y = rankConfig.getArgumentsColY([])
     
     # COL TO EXCLUDE FROM ONE HOT ENCODING
-    arguments_col_not_ohe = getArgumentsColNotOHE(arguments_col_to_drop)
+    arguments_col_not_ohe = rankConfig.getArgumentsColNotOHE(arguments_col_to_drop)
     
     # COLUMNS TO USE IN CLUSTERING
-    arguments_col = getArgumentsColX(arguments_col_to_drop) + getArgumentsColY(arguments_col_to_drop)
-    print("COLUMNS TO USE IN CLUSTERING: " + str(arguments_col))
+    arguments_col = rankConfig.getArgumentsColX(arguments_col_to_drop) + rankConfig.getArgumentsColY(arguments_col_to_drop)
+    print("COLUMNS TO USED IN CLUSTERING: " + str(arguments_col))
 
     #############
     # LOAD DATA #
@@ -524,7 +492,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     test_ds = None
     t1 = datetime.datetime.now()
     if(stage_start == "LOAD"):
-        dfraw = load_from_csv (input_filename, get_input_schema([]))
+        dfraw = load_from_csv (input_filename, rankConfig.get_input_schema([]))
         
         # remove column to exclude
 
