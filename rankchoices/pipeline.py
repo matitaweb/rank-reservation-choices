@@ -51,7 +51,7 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000.000", stage_start="LOAD", stage_stop="PCA")
 
 #100.000.000
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "/dati/data/light_r300.000.000", stage_start="LOAD", stage_stop="LOAD")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "/dati/data/light_r300.000.000", stage_start="LOAD", stage_stop="LOAD" split= [0.999, 0.001], k_pca_perc = 1, k_means_num = 1000)
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000.000", stage_start="PCA", stage_stop="PCA")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000.000", stage_start="KMEANS", stage_stop="KMEANS")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="DICT", stage_stop="DICT")
@@ -491,6 +491,8 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     output_pca_train_filename = base_filename+"-pca-train.parquet"
     output_pca_test_filename  = base_filename+"-pca-test.parquet"
     
+    file_name_dir_kmeans = base_filename+".kmeans"
+            
     cluster_freq_dict_filename = base_filename+"-dict.json"
     
     model_info_filename = base_filename+"-model-info.json"
@@ -633,8 +635,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
             
         kmeans = KMeans().setK(k_means_num).setSeed(random_seed).setFeaturesCol(pcaOutputCol)
         kmeans_model_fitted = kmeans.fit(train_ds_pca)
-        
-        file_name_dir_kmeans = base_filename+".kmeans"
+
         if os.path.exists(file_name_dir_kmeans): shutil.rmtree(file_name_dir_kmeans)
         kmeans_model_fitted.save(file_name_dir_kmeans)
         
@@ -665,6 +666,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         if(stage_start == 'DICT'):
             kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
             kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
+            kmeans_model_fitted = KMeansModel.load(file_name_dir_kmeans)  # load from file system 
         
         frequency_dict = get_cluster_freq_dict(kmeans_train_ds, arguments_col_y)
         cluster_freq_dict = build_cluster_freq_dict(frequency_dict)
@@ -688,7 +690,6 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
             cluster_freq_dict = load_cluster_freq_dict(cluster_freq_dict_filename)
             kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
             kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
-            file_name_dir_kmeans = base_filename+".kmeans"
             kmeans_model_fitted = KMeansModel.load(file_name_dir_kmeans)  # load from file system 
         accuracyDictList = test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict)
         accuracyMeanList = [e['mean_acc'] for e in accuracyDictList]
