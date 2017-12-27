@@ -51,7 +51,7 @@ class RankConfig:
         return arguments_col_not_ohe
         
     def validate_with_metadata_exceptList(self):
-        exceptList = ["X_ETA", "Y_GIORNI_ALLA_PRENOTAZIONE"]
+        exceptList = ["X_ETA", "Y_GIORNO_SETTIMANA", "Y_MESE_ANNO", "Y_FASCIA_ORARIA", "Y_GIORNI_ALLA_PRENOTAZIONE"]
         return exceptList
     
     def get_input_schema(self, arguments_col_to_drop):
