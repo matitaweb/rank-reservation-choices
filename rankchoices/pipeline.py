@@ -6,7 +6,7 @@ import os
 import shutil
 from pyspark.ml.feature import OneHotEncoder, StringIndexer, StringIndexerModel, IndexToString, VectorAssembler, PCA, PCAModel
 from pyspark.ml.clustering import KMeans
-from pyspark.ml import PipelineModel
+
 from pyspark.ml.clustering import KMeansModel
 from pyspark.sql.functions import lead, col, count, last, greatest
 import pyspark.sql.functions as functions
@@ -41,7 +41,7 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_start="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_stop="PCA")
 
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/10k", stage_start="LOAD", stage_stop="LOAD")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/10k", stage_start="LOAD", stage_stop="TEST")
 
 #10.000
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="LOAD", stage_stop="LOAD")
@@ -54,7 +54,7 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000.000", stage_start="LOAD", stage_stop="PCA")
 
 #100.000.000
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "/dati/data/light_r300.000.000", stage_start="LOAD", stage_stop="LOAD" split= [0.999, 0.001], k_pca_perc = 1, k_means_num = 1000)
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "/dati/data/light_r300.000.000", stage_start="TEST", stage_stop="LOAD" split= [0.999, 0.001], k_pca_perc = 1, k_means_num = 1000)
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000.000", stage_start="PCA", stage_stop="PCA")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000.000", stage_start="KMEANS", stage_stop="KMEANS")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = onehotencoding.start(base_filename = "data/light_r100.000.000", stage_start="DICT", stage_stop="DICT")
@@ -98,6 +98,7 @@ def convert_y_giorni_alla_prenotazione(x):
         
     return 8 #"oltre60gg"    
 
+
 # CREATE FREQUENCY DICTIONARY ON arguments_col_y
 def get_cluster_freq_dict(kmeans_train_ds, arguments_col_y):
 
@@ -115,6 +116,7 @@ def get_cluster_freq_dict(kmeans_train_ds, arguments_col_y):
     
     return frequency_dict
     #print("END EXTRACT DATA FROM DATAFRAME")
+
     
 def build_cluster_freq_dict(frequency_dict):
     
@@ -295,8 +297,8 @@ def apply_onehotencoding_model(df, arguments_col_not_ohe, encoderDict, outputCol
     ohe_col = [k for k,x in encoderDict.items()]
     encoders = [x for k, x in encoderDict.items()]
     assemblerOHE = VectorAssembler(inputCols=arguments_col_not_ohe+ohe_col, outputCol=outputCol )
-    pipeline = Pipeline(stages=encoders+[assemblerOHE])
-    ohe_model=pipeline.fit(df)
+    pip = Pipeline(stages=encoders+[assemblerOHE])
+    ohe_model=pip.fit(df)
     df_ohe=ohe_model.transform(df)
     #for x in ohe_col: df_ohe = df_ohe.drop(x)
     return df_ohe
@@ -351,26 +353,10 @@ def load_metadata(file_name_dir):
         metadataDict[d]=meta
     return metadataDict
         
-def validate_with_metadata(rList, metadataDict, exceptList):
-    resValidate = {}
-    resValidate['valid'] = []
-    resValidate['rejected'] = []
-    
-    for r in rList:
-        rejectedCols = {key: value for key, value in r.items() if (not key in exceptList and not str(value) in metadataDict[key]['ml_attr']['vals']) }
-            
-        if(len(rejectedCols.keys()) == 0):
-            resValidate['valid'].append(r);
-            continue
-        rejectedRow = {}
-        rejectedRow['row'] = r
-        rejectedRow['rejecterCols'] = rejectedCols
-        resValidate['rejected'].append(rejectedRow)
-    return resValidate
 
-def validate_with_metadata_exceptList():
-    exceptList = ["X_ETA", "Y_GIORNI_ALLA_PRENOTAZIONE"]
-    return exceptList
+
+
+
 
 
 # http://www.codehamster.com/2015/03/09/different-ways-to-calculate-the-euclidean-distance-in-python/
@@ -401,30 +387,8 @@ def euclidean0_1(vector1, vector2):
     return dist
   
 
-"""
-def getArgumentsColString(arguments_col_to_drop):
-    arguments_col_string_all = [('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), ('STRING_Y_UE', 'Y_UE')]
-    arguments_col_string = [x for x in arguments_col_string_all if x[0] not in arguments_col_to_drop and  x[1] not in arguments_col_to_drop ]
-    return arguments_col_string
-    
 
-def getArgumentsColX(arguments_col_to_drop):
-    arguments_col_x_all = [ 'X_ETA', 'X_SESSO', 'X_GRADO_URG', 'X_PRESTAZIONE']
-    arguments_col_x = [x for x in arguments_col_x_all if x not in arguments_col_to_drop]
-    return arguments_col_x
-
-def getArgumentsColY(arguments_col_to_drop):
-    arguments_col_y_all = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
-    arguments_col_y = [x for x in arguments_col_y_all if x not in arguments_col_to_drop]
-    return arguments_col_y
-
-def getArgumentsColNotOHE(arguments_col_to_drop):
-    arguments_col_ohe_all = ['X_ETA']
-    arguments_col_ohe = [x for x in arguments_col_ohe_all if x not in arguments_col_to_drop]
-    return arguments_col_ohe
-"""
-
-def save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc, tot_col, wssse):
+def save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc, tot_col, wssse, rankConfig):
     
     k_pca = int(tot_col*k_pca_perc/100)
     
@@ -435,6 +399,21 @@ def save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc
     model_info['k_pca_perc'] = k_pca_perc
     model_info['wssse'] = wssse
     model_info['kmeans_centers'] = kmeans_centers
+    
+    
+    model_info['arguments_col_to_drop'] = rankConfig.getArgumentsColToDrop()
+    
+    # COLS TO TRANSFORM FROM STRING TO INDEX
+    model_info['arguments_col_string'] = rankConfig.getArgumentsColString([])
+    
+    # COLS THAT DEFINE FREQUENCY
+    model_info['arguments_col_y'] = rankConfig.getArgumentsColY([])
+    
+    # COL TO EXCLUDE FROM ONE HOT ENCODING
+    model_info['arguments_col_not_ohe'] = rankConfig.getArgumentsColNotOHE(rankConfig.getArgumentsColToDrop())
+    
+    # COLUMNS TO USE IN CLUSTERING
+    model_info['arguments_col'] = rankConfig.getArgumentsColX(rankConfig.getArgumentsColToDrop()) + rankConfig.getArgumentsColY(rankConfig.getArgumentsColToDrop())
     
     if os.path.exists(model_info_filename): os.remove(model_info_filename)
     with open(model_info_filename, 'wb') as f:
@@ -521,6 +500,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
         
         # ONE HOT ENCODING
         ohe_col = ["OHE_"+x for x in arguments_col if not x in arguments_col_not_ohe]
+        print('OHE_COLS: ' + str(ohe_col))
         featureOutputCol="features"
         encodersDict= get_onehotencoding_model(arguments_col, ohe_col, arguments_col_not_ohe)
         df_ohe = apply_onehotencoding_model(dfi, arguments_col_not_ohe, encodersDict, featureOutputCol)
@@ -684,7 +664,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc
     
     # save json model info
     kmeans_centers = [str(center) for center in kmeans_model_fitted.clusterCenters()]
-    save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc, tot_col, wssse)
+    save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc, tot_col, wssse, rankConfig)
     
     write_report(report_filename, tot_col, k_means_num, arguments_col_y, accuracyDictList, accuracyMeanList, time_duration_split, time_duration_pca, time_duration_kmean, time_duration_test, k_pca=k_pca, k_pca_perc=k_pca_perc, split=split, split_col=split_col)
     print('Snapshot report test-set: ' + report_filename)

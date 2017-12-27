@@ -4,16 +4,12 @@ UTILS
 
 """
 
-from pyspark.sql.types import IntegerType
-from pyspark.sql.types import StringType
-from pyspark.sql.types import StructType
-from pyspark.sql.types import StructField
-
 
 class RankConfig:
     
     def __init__(self):
-        self.arguments_col_to_drop = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+        self.arguments_col_to_drop = [ 'X_PRESCRITTORE', 'X_BRANCA_SPECIALISTICA', 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+        #self.arguments_col_to_drop = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
         self.arguments_col_string_all = [
             ('STRING_X_CAP_RESIDENZA', 'X_CAP_RESIDENZA'), 
             ('STRING_X_USL_RES', 'X_USL_RES'), 
@@ -29,7 +25,7 @@ class RankConfig:
             
             ('STRING_Y_UE', 'Y_UE')
             ]
-        self.arguments_col_x_all = [ 'X_ETA','X_SESSO','X_CAP_RESIDENZA','X_USL_RES',  'X_FASCIA','X_GRADO_URG','X_QDGN','X_INVIANTE','X_ESENZIONE','X_PRESCRITTORE',  'X_PRESTAZIONE','X_BRANCA_SPECIALISTICA']
+        self.arguments_col_x_all = [ 'X_ETA','X_SESSO','X_CAP_RESIDENZA','X_USL_RES','X_FASCIA','X_GRADO_URG','X_QDGN','X_INVIANTE','X_ESENZIONE','X_PRESCRITTORE','X_PRESTAZIONE','X_BRANCA_SPECIALISTICA']
         self.arguments_col_y_all = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
         self.arguments_col_not_ohe_all = ['X_ETA']
         
@@ -54,8 +50,17 @@ class RankConfig:
         arguments_col_not_ohe = [x for x in self.arguments_col_not_ohe_all if x not in arguments_col_to_drop]
         return arguments_col_not_ohe
         
+    def validate_with_metadata_exceptList(self):
+        exceptList = ["X_ETA", "Y_GIORNI_ALLA_PRENOTAZIONE"]
+        return exceptList
+    
     def get_input_schema(self, arguments_col_to_drop):
 
+        from pyspark.sql.types import IntegerType
+        from pyspark.sql.types import StringType
+        from pyspark.sql.types import StructType
+        from pyspark.sql.types import StructField
+        
         filtered = []
         
         if(not "X_ETA" in arguments_col_to_drop):
@@ -101,3 +106,21 @@ class RankConfig:
         input_schema = StructType(filtered)
         
         return input_schema
+        
+        
+def validate_with_metadata(rList, metadataDict, exceptList):
+    resValidate = {}
+    resValidate['valid'] = []
+    resValidate['rejected'] = []
+    
+    for r in rList:
+        rejectedCols = {key: value for key, value in r.items() if (not key in exceptList and key in metadataDict and not str(value) in metadataDict[key]['ml_attr']['vals']) }
+            
+        if(len(rejectedCols.keys()) == 0):
+            resValidate['valid'].append(r);
+            continue
+        rejectedRow = {}
+        rejectedRow['row'] = r
+        rejectedRow['rejecterCols'] = rejectedCols
+        resValidate['rejected'].append(rejectedRow)
+    return resValidate

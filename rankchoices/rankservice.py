@@ -8,6 +8,8 @@ from numpy import array
 from math import sqrt
 import argparse
 from rank_utils import RankConfig
+from rank_utils import validate_with_metadata
+
 
 
 
@@ -36,7 +38,10 @@ app = Flask(__name__)
 
 @app.route('/', methods=['GET'])
 def default_get():
-    rlist = [{ "X_ETA":77, "X_SESSO":1, "X_GRADO_URG":5, "STRING_X_PRESTAZIONE": "12000", "STRING_Y_UE":"18299", "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":10, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":11},{"X_ETA":43, "X_SESSO":2, "X_GRADO_URG":0, "STRING_X_PRESTAZIONE":"3413", "STRING_Y_UE":"17842", "Y_GIORNO_SETTIMANA":6, "Y_MESE_ANNO":3, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":35}]
+    rlist = [
+        { "X_ETA":77, "X_SESSO":1, "STRING_X_CAP_RESIDENZA": "40046", "STRING_X_USL_RES":"233", "STRING_X_FASCIA":"315", "X_GRADO_URG":5, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"18181", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"3165", "STRING_X_PRESTAZIONE": "12000", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_Y_UE":"18299", "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":10, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":11},
+        { "X_ETA":43, "X_SESSO":2, "STRING_X_CAP_RESIDENZA": "40046", "STRING_X_USL_RES":"233", "STRING_X_FASCIA":"315", "X_GRADO_URG":0, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"18181", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"3165", "STRING_X_PRESTAZIONE":  "3413", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_Y_UE":"17842", "Y_GIORNO_SETTIMANA" :6, "Y_MESE_ANNO":3,  "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":35}
+        ]
     #rlist = _filterCols(rlist)
     accuracyDictList = _predict(rlist)
     return jsonify(accuracyDictList)
@@ -59,7 +64,7 @@ def _filterCols(rlist):
     
 def _predict(rlistPar):
     t1 = datetime.datetime.now()
-    validationResult = pipe.validate_with_metadata(rlistPar, metadataDict, pipe.validate_with_metadata_exceptList())
+    validationResult = validate_with_metadata(rlistPar, metadataDict, rankConfig.validate_with_metadata_exceptList())
     print(validationResult)
     
     rlist = validationResult['valid']
@@ -81,8 +86,8 @@ def _predict(rlistPar):
     
     # APPLY ONE HOT ENCODING
     featureOutputCol = "features"
-    arguments_col_to_drop = pipe.getArgumentsColToDrop()
-    arguments_col_not_ohe = pipe.getArgumentsColNotOHE(arguments_col_to_drop)
+    arguments_col_to_drop = rankConfig.getArgumentsColToDrop()
+    arguments_col_not_ohe = rankConfig.getArgumentsColNotOHE(arguments_col_to_drop)
     df_ohe = pipe.apply_onehotencoding_model(dfi, arguments_col_not_ohe, encodersDict, featureOutputCol)
     
     #APPLY PCA
@@ -148,7 +153,7 @@ if __name__ == '__main__':
         print("ARG: " + args.base_dir_path)
         base_dir = args.base_dir_path
     else:
-        base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/light_r10.000"
+        base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/10k"
     
     if args.spark_home_path:
         print("ARG: " + args.spark_home_path)
@@ -170,7 +175,7 @@ if __name__ == '__main__':
     SparkContext.setSystemProperty('spark.ui.enabled', 'false')
     from pyspark.sql import SQLContext
     from pyspark.sql import SparkSession
-    from pyspark.ml import PipelineModel
+    #from pyspark.ml import PipelineModel
     from pyspark.ml.feature import PCA, PCAModel
     from pyspark.ml.clustering import KMeans, KMeansModel
     import pipeline as pipe
@@ -192,6 +197,7 @@ if __name__ == '__main__':
     
     # COLUMNS TO USE IN CLUSTERING
     arguments_col = rankConfig.getArgumentsColX(arguments_col_to_drop) + rankConfig.getArgumentsColY(arguments_col_to_drop)
+    print("COLUMNS TO USED IN CLUSTERING: " + str(arguments_col))
     
     # LOAD SPARK
     spark = SparkSession.builder.master("local").appName("Rank").config("spark.python.profile", "true").getOrCreate()
