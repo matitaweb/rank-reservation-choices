@@ -8,11 +8,12 @@ UTILS
 class RankConfig:
     
     def __init__(self):
-        self.arguments_col_to_drop = [ 'X_PRESCRITTORE', 'X_BRANCA_SPECIALISTICA', 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
-        #self.arguments_col_to_drop = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+        self.arguments_col_to_drop =  [ 'X_PRESCRITTORE',                           'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+        #self.arguments_col_to_drop = [ 'X_PRESCRITTORE', 'X_BRANCA_SPECIALISTICA', 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+        #self.arguments_col_to_drop = [                                             'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
         self.arguments_col_string_all = [
-            ('STRING_X_CAP_RESIDENZA', 'X_CAP_RESIDENZA'), 
-            ('STRING_X_USL_RES', 'X_USL_RES'), 
+            ('STRING_X_CAP', 'X_CAP'),
+            ('STRING_X_USL', 'X_USL'), 
             
             ('STRING_X_FASCIA', 'X_FASCIA'), 
             ('STRING_X_QDGN', 'X_QDGN'), 
@@ -25,7 +26,7 @@ class RankConfig:
             
             ('STRING_Y_UE', 'Y_UE')
             ]
-        self.arguments_col_x_all = [ 'X_ETA','X_SESSO','X_CAP_RESIDENZA','X_USL_RES','X_FASCIA','X_GRADO_URG','X_QDGN','X_INVIANTE','X_ESENZIONE','X_PRESCRITTORE','X_PRESTAZIONE','X_BRANCA_SPECIALISTICA']
+        self.arguments_col_x_all = [ 'X_ETA','X_SESSO','X_CAP','X_USL', 'X_FASCIA','X_GRADO_URG','X_QDGN','X_INVIANTE','X_ESENZIONE','X_PRESCRITTORE', 'X_PRESTAZIONE','X_BRANCA_SPECIALISTICA']
         self.arguments_col_y_all = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
         self.arguments_col_not_ohe_all = ['X_ETA']
         
@@ -67,10 +68,10 @@ class RankConfig:
             filtered.append(StructField("X_ETA", IntegerType()))
         if(not "X_SESSO" in arguments_col_to_drop):
             filtered.append(StructField("X_SESSO", IntegerType()))
-        if(not "STRING_X_CAP_RESIDENZA" in arguments_col_to_drop):
-            filtered.append(StructField("STRING_X_CAP_RESIDENZA", StringType()))
-        if(not "STRING_X_USL_RES" in arguments_col_to_drop):
-            filtered.append(StructField("STRING_X_USL_RES", StringType()))
+        if(not "STRING_X_CAP" in arguments_col_to_drop):
+            filtered.append(StructField("STRING_X_CAP", StringType()))
+        if(not "STRING_X_USL" in arguments_col_to_drop):
+            filtered.append(StructField("STRING_X_USL", StringType()))
             
         if(not "STRING_X_FASCIA" in arguments_col_to_drop):
             filtered.append(StructField("STRING_X_FASCIA", StringType()))

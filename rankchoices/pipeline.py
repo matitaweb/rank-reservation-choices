@@ -30,6 +30,7 @@ import pyspark.sql.types as types
 
 """
 import rankchoices.pipeline as pipe
+import pipeline as pipe
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="LOAD", stage_stop="LOAD")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="PCA", stage_stop="PCA")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="KMEANS", stage_stop="KMEANS")
@@ -41,6 +42,7 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_start="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_stop="PCA")
 
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "/dati/data/since2010", k_means_num = 1000, stage_start="LOAD", stage_stop="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/10k", stage_start="LOAD", stage_stop="TEST")
 
 #10.000
@@ -420,7 +422,7 @@ def save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc
         json.dump(model_info, codecs.getwriter('utf-8')(f), ensure_ascii=False)
 
 
-def start(base_filename = "data/light_r10.000",  split= [0.99, 0.01], k_pca_perc = 1, k_means_num = 100, stage_start="LOAD", stage_stop="TEST"):
+def start(base_filename = "data/light_r10.000",  split= [0.999, 0.001], k_pca_perc = 1, k_means_num = 1000, stage_start="LOAD", stage_stop="TEST"):
 
     # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
 

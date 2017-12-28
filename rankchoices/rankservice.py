@@ -39,8 +39,8 @@ app = Flask(__name__)
 @app.route('/', methods=['GET'])
 def default_get():
     rlist = [
-        { "X_ETA":77, "X_SESSO":1, "STRING_X_CAP_RESIDENZA": "40046", "STRING_X_USL_RES":"233", "STRING_X_FASCIA":"315", "X_GRADO_URG":5, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"18181", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"3165", "STRING_X_PRESTAZIONE": "12000", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_Y_UE":"18299", "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":10, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":11},
-        { "X_ETA":43, "X_SESSO":2, "STRING_X_CAP_RESIDENZA": "40046", "STRING_X_USL_RES":"233", "STRING_X_FASCIA":"315", "X_GRADO_URG":0, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"18181", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"3165", "STRING_X_PRESTAZIONE":  "3413", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_Y_UE":"17842", "Y_GIORNO_SETTIMANA" :6, "Y_MESE_ANNO":3,  "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":35}
+        { "X_ETA":77, "X_SESSO":1, "STRING_X_CAP": "40046", "STRING_X_USL":"233", "STRING_X_FASCIA":"315", "X_GRADO_URG":5, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"18181", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"3165", "STRING_X_PRESTAZIONE": "12000", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_Y_UE":"18299", "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":10, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":11},
+        { "X_ETA":43, "X_SESSO":2, "STRING_X_CAP": "40046", "STRING_X_USL":"233", "STRING_X_FASCIA":"315", "X_GRADO_URG":0, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"18181", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"3165", "STRING_X_PRESTAZIONE":  "3413", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_Y_UE":"17842", "Y_GIORNO_SETTIMANA" :6, "Y_MESE_ANNO":3,  "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":35}
         ]
     #rlist = _filterCols(rlist)
     accuracyDictList = _predict(rlist)
@@ -250,32 +250,3 @@ if __name__ == '__main__':
     app.run(host=host, port=port, debug=True)
     app.logger.info("Starting flask app on %s:%s", host, port)
     
-    """
-    rlist = [{
-        "X_ETA":77,
-        "X_SESSO":1,
-        "X_GRADO_URG":5,
-        "STRING_X_PRESTAZIONE": "2000",
-        'STRING_Y_UE':"18299", 
-        'Y_GIORNO_SETTIMANA' :2, 
-        'Y_MESE_ANNO':10, 
-        'Y_FASCIA_ORARIA':0, 
-        'Y_GIORNI_ALLA_PRENOTAZIONE':11
-    },
-    {
-        "X_ETA":43,
-        "X_SESSO":2,
-        "X_GRADO_URG":0,
-        "STRING_X_PRESTAZIONE":"3413",
-        'STRING_Y_UE':"17842", 
-        'Y_GIORNO_SETTIMANA':6, 
-        'Y_MESE_ANNO':3, 
-        'Y_FASCIA_ORARIA':0, 
-        'Y_GIORNI_ALLA_PRENOTAZIONE':35
-    }]
-    #print(app.post('/predict', json=rlist))
-
-    with app.test_request_context('/?name=Peter'):
-        assert request.path == '/'
-        assert request.args['name'] == 'Peter'
-    """
