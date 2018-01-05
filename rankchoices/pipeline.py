@@ -43,7 +43,8 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_stop="PCA")
 
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "/dati/data/since2010", k_means_num = 1000, stage_start="LOAD", stage_stop="TEST")
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/10k", stage_start="LOAD", stage_stop="TEST")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/10k", k_means_num=100,  split=[0.9, 0.1], position_threshold=5, stage_start="LOAD", stage_stop="TEST")
+
 
 #10.000
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000", stage_start="LOAD", stage_stop="LOAD")
@@ -143,18 +144,18 @@ def build_cluster_freq_dict(frequency_dict):
     
     return cluster_freq_dict
 
-def test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict):
+def test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict, position_threshold):
 
     accuracyDictList = []
     
     for r in kmeans_test_ds.collect():
         c= str(r['prediction'])
-        accuracyDict = get_accuracy(r, cluster_freq_dict, c, arguments_col_y)
+        accuracyDict = get_accuracy(r, cluster_freq_dict, c, arguments_col_y, position_threshold)
         accuracyDictList.append(accuracyDict)
             
     return accuracyDictList
 
-def get_accuracy(r, cluster_freq_dict, c, arguments_col_y):
+def get_accuracy(r, cluster_freq_dict, c, arguments_col_y, position_threshold):
     accuracyDict = {}
     accuracyDict['prediction'] = c
     tot_acc=0
@@ -171,7 +172,14 @@ def get_accuracy(r, cluster_freq_dict, c, arguments_col_y):
             last_position = cluster_freq_dict[c][ar]['last']
             if val in cluster_freq_dict[c][ar]:
                 position = cluster_freq_dict[c][ar][val]['POS'] - 1
-                acc = (float(last_position)-float(position))/float(last_position)
+                if(position_threshold is None):
+                    acc = (float(last_position)-float(position))/float(last_position)
+                else:
+                    if(position < position_threshold):
+                        last_position = position_threshold if position_threshold < last_position else last_position
+                        acc = (float(last_position)-float(position))/float(last_position)
+                    else:
+                        print( str(ar) + ">>" + str(position))
             
         accuracyDict[ar]["VAL"]=val
         accuracyDict[ar]["POS"]=position
@@ -422,7 +430,7 @@ def save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc
         json.dump(model_info, codecs.getwriter('utf-8')(f), ensure_ascii=False)
 
 
-def start(base_filename = "data/light_r10.000",  split= [0.999, 0.001], k_pca_perc = 1, k_means_num = 1000, stage_start="LOAD", stage_stop="TEST"):
+def start(base_filename = "data/light_r10.000",  split=[0.999, 0.001], k_pca_perc=1, k_means_num=1000, position_threshold=5, stage_start="LOAD", stage_stop="TEST"):
 
     # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
 
@@ -641,7 +649,7 @@ def start(base_filename = "data/light_r10.000",  split= [0.999, 0.001], k_pca_pe
             kmeans_train_ds = load_from_parquet (output_kmeans_train_ds_filename)
             kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
             kmeans_model_fitted = KMeansModel.load(file_name_dir_kmeans)  # load from file system 
-        accuracyDictList = test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict)
+        accuracyDictList = test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict, position_threshold)
         accuracyMeanList = [e['mean_acc'] for e in accuracyDictList]
         mean_acc= np.mean(accuracyMeanList)
     time_duration_test = (datetime.datetime.now()-t1)
