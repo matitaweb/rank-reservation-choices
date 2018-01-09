@@ -172,15 +172,8 @@ def get_accuracy(r, cluster_freq_dict, c, arguments_col_y, position_threshold):
             last_position = cluster_freq_dict[c][ar]['last']
             if val in cluster_freq_dict[c][ar]:
                 position = cluster_freq_dict[c][ar][val]['POS'] - 1
-                if(position_threshold is None):
-                    acc = (float(last_position)-float(position))/float(last_position)
-                else:
-                    if(position < position_threshold):
-                        last_position = position_threshold if position_threshold < last_position else last_position
-                        acc = (float(last_position)-float(position))/float(last_position)
-                    else:
-                        print( str(ar) + ">>" + str(position))
-            
+                acc = (float(last_position)-float(position))/float(last_position)
+
         accuracyDict[ar]["VAL"]=val
         accuracyDict[ar]["POS"]=position
         accuracyDict[ar]["LAST_POS"]=last_position
@@ -205,7 +198,7 @@ def load_cluster_freq_dict(file_name_dir):
         d = json.load(json_data)
         return d
     
-def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, accuracyMeanList, time_duration_split, time_duration_pca, time_duration_kmean, time_duration_test,  k_pca="-", k_pca_perc="-", split="-", split_col="-"):
+def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, accuracyMeanList, time_duration_split, time_duration_pca, time_duration_kmean, time_duration_test, position_threshold,  k_pca="-", k_pca_perc="-", split="-", split_col="-"):
     file = open(filename, 'w')
     file.write('filename: ' + str(filename)+'\n')
     file.write('k_pca: ' + str(k_pca_perc) + "% " + str(k_pca)+ ' / '+str(tot_col)+'\n')
@@ -218,9 +211,39 @@ def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, a
     file.write('train, test: ' + str(split)+'\n')
     file.write('train, test: ' + str(split_col)+'\n\n\n')
     
+    file.write('position_threshold: ' + str(position_threshold)+'\n')
+    file.write('------------------------------------'+'\n\n')
+    
+    # count threshold per ogni argomento
+    for c in arguments_col:
+        positionList = [e[c]["LAST_POS"] if e[c]["POS"] is None  else e[c]["POS"]  for e in accuracyDictList]
+        #print(len(positionList))
+        #continue
+        mean_pos = np.mean(positionList)
+        min_pos = np.min(positionList)
+        max_pos = np.max(positionList)
+        count_position = len(positionList)
+        count_position_threshold = count_position
+        
+        
+        file.write(str(c)+'\n')
+        file.write('------------------------------------'+'\n')
+        file.write("mean_pos: " + str(mean_pos)+'\n')
+        file.write("min_pos: " + str(min_pos)+'\n')
+        file.write("max_pos: " + str(max_pos)+'\n')
+        file.write("count_position: " + str(count_position)+'\n')
+        if not (position_threshold is None):
+            for i in range(position_threshold):
+                positionListThreshold = [e for e in positionList if e <= i]
+                count_position_threshold = len(positionListThreshold)
+                count_position_threshold_perc = float(count_position_threshold)/float(count_position)
+                file.write("ENTRO LA POS: " + str(i) + " -> " + str(count_position_threshold_perc) +" = " + str(count_position_threshold)  +"/" + str(count_position)+'\n')
+        file.write('------------------------------------'+'\n\n')
+    
     mean = np.mean(accuracyMeanList)
     file.write('mean acc.: ' + str(mean)+'\n')
     file.write('------------------------------------'+'\n\n')
+    
     
     for c in arguments_col:
         m = np.mean([e[c]['ACC'] for e in accuracyDictList])
@@ -579,18 +602,21 @@ def start(base_filename = "data/light_r10.000",  split=[0.999, 0.001], k_pca_per
     # KMEANS #
     ##########
     
-    t1 = datetime.datetime.now()
+    
     kmeans_train_ds = None
     kmeans_test_ds = None
     output_kmeans_train_ds_filename = base_filename+"-kmeans-train.parquet"
     output_kmeans_test_ds_filename = base_filename+"-kmeans-test.parquet"
     
+    tkmean = datetime.datetime.now()
+    
     if(stage_start == "LOAD" or stage_start == "PCA" or stage_start=="KMEANS"):
         if(stage_start == 'KMEANS'):
             train_ds_pca = load_from_parquet (output_pca_train_filename)
             test_ds_pca = load_from_parquet (output_pca_test_filename)
-            print ("TRAIN SIZE: " + str(train_ds_pca.count()))
-            
+            print ("LOAD PCA, TRAIN SIZE: " + str(train_ds_pca.count()))
+        
+        t1 = datetime.datetime.now()
         kmeans = KMeans().setK(k_means_num).setSeed(random_seed).setFeaturesCol(pcaOutputCol)
         kmeans_model_fitted = kmeans.fit(train_ds_pca)
 
@@ -601,16 +627,20 @@ def start(base_filename = "data/light_r10.000",  split=[0.999, 0.001], k_pca_per
         kmeans_test_ds = kmeans_model_fitted.transform(test_ds_pca) 
         
 
-    time_duration_kmean = (datetime.datetime.now()-t1)
-    print('time kmean: ' + str(datetime.timedelta(seconds=time_duration_kmean.total_seconds())))
-    if( stage_stop == "KMEANS"):
+        time_duration_kmean = (datetime.datetime.now()-t1)
+        print('time kmean: ' + str(datetime.timedelta(seconds=time_duration_kmean.total_seconds())))
+    
         t1 = datetime.datetime.now()
         kmeans_train_ds.write.parquet(output_kmeans_train_ds_filename, mode="overwrite")
         kmeans_test_ds.write.parquet(output_kmeans_test_ds_filename, mode="overwrite")
         time_duration_kmean_save = (datetime.datetime.now()-t1)
         print('Snapshot kmeans train-set: ' + output_kmeans_train_ds_filename)
         print('Snapshot kmeans test-set: ' + output_kmeans_test_ds_filename)
-        print('STOP at : ' + str(stage_stop) + ", save in: " + str(datetime.timedelta(seconds=time_duration_kmean_save.total_seconds())))
+        print("time save in: " + str(datetime.timedelta(seconds=time_duration_kmean_save.total_seconds())))
+    
+    time_duration_kmean_all = (datetime.datetime.now()-tkmean)
+    if( stage_stop == "KMEANS"):
+        print('STOP at : ' + str(stage_stop))
         return kmeans_train_ds, kmeans_test_ds, None, None, None
     
     
@@ -650,8 +680,12 @@ def start(base_filename = "data/light_r10.000",  split=[0.999, 0.001], k_pca_per
             kmeans_test_ds = load_from_parquet (output_kmeans_test_ds_filename)
             kmeans_model_fitted = KMeansModel.load(file_name_dir_kmeans)  # load from file system 
         accuracyDictList = test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict, position_threshold)
+        
+        # media sul racking di accuratezza
         accuracyMeanList = [e['mean_acc'] for e in accuracyDictList]
-        mean_acc= np.mean(accuracyMeanList)
+        mean_acc = np.mean(accuracyMeanList)
+        
+        
     time_duration_test = (datetime.datetime.now()-t1)
     print('time test: ' + str(datetime.timedelta(seconds=time_duration_test.total_seconds())))
     
@@ -676,7 +710,7 @@ def start(base_filename = "data/light_r10.000",  split=[0.999, 0.001], k_pca_per
     kmeans_centers = [str(center) for center in kmeans_model_fitted.clusterCenters()]
     save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc, tot_col, wssse, rankConfig)
     
-    write_report(report_filename, tot_col, k_means_num, arguments_col_y, accuracyDictList, accuracyMeanList, time_duration_split, time_duration_pca, time_duration_kmean, time_duration_test, k_pca=k_pca, k_pca_perc=k_pca_perc, split=split, split_col=split_col)
+    write_report(report_filename, tot_col, k_means_num, arguments_col_y, accuracyDictList, accuracyMeanList, time_duration_split, time_duration_pca, time_duration_kmean_all, time_duration_test, position_threshold, k_pca=k_pca, k_pca_perc=k_pca_perc, split=split, split_col=split_col)
     print('Snapshot report test-set: ' + report_filename)
     
     return kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc

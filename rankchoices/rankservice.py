@@ -43,13 +43,15 @@ def default_get():
         { "X_ETA":43, "X_SESSO":2, "STRING_X_CAP": "40046", "STRING_X_USL":"233", "STRING_X_FASCIA":"315", "X_GRADO_URG":0, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"18181", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"3165", "STRING_X_PRESTAZIONE":  "3413", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_Y_UE":"17842", "Y_GIORNO_SETTIMANA" :6, "Y_MESE_ANNO":3,  "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":35}
         ]
     #rlist = _filterCols(rlist)
-    accuracyDictList = _predict(rlist)
+    position_threshold = None
+    accuracyDictList = _predict(rlist, position_threshold)
     return jsonify(accuracyDictList)
 
 @app.route('/predict', methods=['POST'])
 def post_predict():
     rlist = json.loads(request.data)
-    accuracyDictList = _predict(rlist)
+    position_threshold = None
+    accuracyDictList = _predict(rlist, position_threshold)
     return jsonify(accuracyDictList)
     
 def _filterCols(rlist):
@@ -62,7 +64,7 @@ def _filterCols(rlist):
     return resultlist
 
     
-def _predict(rlistPar):
+def _predict(rlistPar, position_threshold):
     t1 = datetime.datetime.now()
     validationResult = validate_with_metadata(rlistPar, metadataDict, rankConfig.validate_with_metadata_exceptList())
     print(validationResult)
@@ -118,7 +120,7 @@ def _predict(rlistPar):
         centerdistance = pipe.euclidean0_1(r['pca_features'], cluster_center)
         #print(kmeans_df_pca.columns)
         c= str(r['prediction'])
-        accuracyDict = pipe.get_accuracy(r, cluster_freq_dict, c, arguments_col_y)
+        accuracyDict = pipe.get_accuracy(r, cluster_freq_dict, c, arguments_col_y, position_threshold)
         accuracyDict['centerdistance'] = centerdistance
         accuracyDict['request']={}
         for colname in request_col_names:
