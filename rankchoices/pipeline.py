@@ -217,6 +217,7 @@ def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, a
     # count threshold per ogni argomento
     for c in arguments_col:
         positionList = [e[c]["LAST_POS"] if e[c]["POS"] is None  else e[c]["POS"]  for e in accuracyDictList]
+        last_pos = accuracyDictList[0][c]["LAST_POS"]
         #print(len(positionList))
         #continue
         mean_pos = np.mean(positionList)
@@ -231,6 +232,7 @@ def write_report(filename, tot_col, k_kmeans, arguments_col, accuracyDictList, a
         file.write("mean_pos: " + str(mean_pos)+'\n')
         file.write("min_pos: " + str(min_pos)+'\n')
         file.write("max_pos: " + str(max_pos)+'\n')
+        file.write("last_pos: " + str(last_pos)+'\n')
         file.write("count_position: " + str(count_position)+'\n')
         if not (position_threshold is None):
             for i in range(position_threshold):
