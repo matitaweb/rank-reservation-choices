@@ -8,9 +8,9 @@ UTILS
 class RankConfig:
     
     def __init__(self):
-        self.arguments_col_to_drop =  [ 'X_PRESCRITTORE',                           'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
-        #self.arguments_col_to_drop = [ 'X_PRESCRITTORE', 'X_BRANCA_SPECIALISTICA', 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
-        #self.arguments_col_to_drop = [                                             'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+        self.arguments_col_to_drop =  [ 'X_PRESCRITTORE',                           'Y_STER', 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+        #self.arguments_col_to_drop = [ 'X_PRESCRITTORE', 'X_BRANCA_SPECIALISTICA', 'Y_STER', 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+        #self.arguments_col_to_drop = [                                             'Y_STER', 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
         self.arguments_col_string_all = [
             ('STRING_X_CAP', 'X_CAP'),
             ('STRING_X_USL', 'X_USL'), 
@@ -24,10 +24,11 @@ class RankConfig:
             ('STRING_X_PRESTAZIONE', 'X_PRESTAZIONE'), 
             ('STRING_X_BRANCA_SPECIALISTICA', 'X_BRANCA_SPECIALISTICA'), 
             
-            ('STRING_Y_UE', 'Y_UE')
+            ('STRING_Y_UE', 'Y_UE'),
+            ('STRING_Y_STER', 'Y_STER')
             ]
         self.arguments_col_x_all = [ 'X_ETA','X_SESSO','X_CAP','X_USL', 'X_FASCIA','X_GRADO_URG','X_QDGN','X_INVIANTE','X_ESENZIONE','X_PRESCRITTORE', 'X_PRESTAZIONE','X_BRANCA_SPECIALISTICA']
-        self.arguments_col_y_all = [ 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
+        self.arguments_col_y_all = [ 'Y_STER', 'Y_UE', 'Y_GIORNO_SETTIMANA', 'Y_MESE_ANNO', 'Y_FASCIA_ORARIA', 'Y_GIORNI_ALLA_PRENOTAZIONE']
         self.arguments_col_not_ohe_all = ['X_ETA']
         
     def getArgumentsColToDrop(self):
@@ -91,7 +92,8 @@ class RankConfig:
         if(not "STRING_X_BRANCA_SPECIALISTICA" in arguments_col_to_drop):
             filtered.append(StructField("STRING_X_BRANCA_SPECIALISTICA", StringType()))
         
-    
+        if(not "STRING_Y_STER" in arguments_col_to_drop):
+            filtered.append(StructField("STRING_Y_STER", StringType()))
         if(not "STRING_Y_UE" in arguments_col_to_drop):
             filtered.append(StructField("STRING_Y_UE", StringType()))
         if(not "Y_GIORNO_SETTIMANA" in arguments_col_to_drop):

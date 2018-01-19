@@ -37,7 +37,8 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="DICT", stage_stop="DICT")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="TEST", stage_stop="TEST")
 
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r10.000.000")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/since18-01-2017_annullato_no-strt_valide", stage_start="LOAD", stage_stop="LOAD")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/since18-01-2017_annullato_no-strt_valide", split=[0.9, 0.1], k_pca_perc=1, k_means_num=2000, stage_start="LOAD", stage_stop="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_start="KMEANS")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_start="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_stop="PCA")
@@ -455,7 +456,7 @@ def save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc
         json.dump(model_info, codecs.getwriter('utf-8')(f), ensure_ascii=False)
 
 
-def start(base_filename = "data/light_r10.000",  split=[0.999, 0.001], k_pca_perc=1, k_means_num=1000, position_threshold=5, stage_start="LOAD", stage_stop="TEST"):
+def start(base_filename = "data/light_r10.000", split=[0.09, 0.01], k_pca_perc=1, k_means_num=1000, position_threshold=10, stage_start="LOAD", stage_stop="TEST"):
 
     # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
 
@@ -508,8 +509,6 @@ def start(base_filename = "data/light_r10.000",  split=[0.999, 0.001], k_pca_per
     if(stage_start == "LOAD"):
         dfraw = load_from_csv (input_filename, rankConfig.get_input_schema([]))
         
-        # remove column to exclude
-
         # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
         colname_to_quantize = "Y_GIORNI_ALLA_PRENOTAZIONE"
         my_udf = functions.UserDefinedFunction(convert_y_giorni_alla_prenotazione, types.IntegerType())
