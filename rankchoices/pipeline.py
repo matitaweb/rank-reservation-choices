@@ -37,8 +37,8 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="DICT", stage_stop="DICT")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/light_r100.000", stage_start="TEST", stage_stop="TEST")
 
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/since18-01-2017_annullato_no-strt_valide", stage_start="LOAD", stage_stop="LOAD")
-kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/since18-01-2017_annullato_no-strt_valide", split=[0.9, 0.1], k_pca_perc=1, k_means_num=2000, stage_start="LOAD", stage_stop="TEST")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/bo_since19-01-2018_annullato_no-strt_e_prst_valide", stage_start="LOAD", stage_stop="LOAD")
+kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(base_filename = "data/bo_since19-01-2018_annullato_no-strt_e_prst_valide", split=[0.9, 0.1], k_pca_perc=1, k_means_num=2000, stage_start="LOAD", stage_stop="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_start="KMEANS")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_start="TEST")
 kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc = pipe.start(stage_stop="PCA")
@@ -456,7 +456,7 @@ def save_model_info(model_info_filename, kmeans_centers, k_means_num, k_pca_perc
         json.dump(model_info, codecs.getwriter('utf-8')(f), ensure_ascii=False)
 
 
-def start(base_filename = "data/light_r10.000", split=[0.09, 0.01], k_pca_perc=1, k_means_num=1000, position_threshold=10, stage_start="LOAD", stage_stop="TEST"):
+def start(base_filename = "data/light_r10.000", split=[0.09, 0.01], k_pca_perc=1, k_means_num=1000, position_threshold=10, stage_start="LOAD", stage_stop="TEST", random_seed=1):
 
     # stage_start, stage_stop  -> LOAD | PCA | KMEANS | DICT | TEST
 
@@ -478,9 +478,7 @@ def start(base_filename = "data/light_r10.000", split=[0.09, 0.01], k_pca_perc=1
     
     model_info_filename = base_filename+"-model-info.json"
    
-    
-    random_seed = 1
-    
+
     rankConfig = RankConfig();
     
     # COLS to ESCLUDE TO SIMPLER MODEL

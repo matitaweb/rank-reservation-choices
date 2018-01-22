@@ -28,6 +28,7 @@ normalizzazione del calcolo del ranking
 
 
 python rankservice.py -b "/dati/data/light_r300.000.000" -s "/root/spark-2.2.1-bin-hadoop2.7"
+python rankservice.py -b "/home/ubuntu/workspace/rank-reservation-choices/data/bo_since19-01-2018_annullato_no-strt_e_prst_valide"
 """
 
 # CONFIGURATION
@@ -39,8 +40,14 @@ app = Flask(__name__)
 @app.route('/', methods=['GET'])
 def default_get():
     rlist = [
-        { "X_ETA":77, "X_SESSO":1, "STRING_X_CAP": "40046", "STRING_X_USL":"233", "STRING_X_FASCIA":"315", "X_GRADO_URG":5, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"18181", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"3165", "STRING_X_PRESTAZIONE": "12000", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_Y_UE":"18299", "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":10, "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":11},
-        { "X_ETA":43, "X_SESSO":2, "STRING_X_CAP": "40046", "STRING_X_USL":"233", "STRING_X_FASCIA":"315", "X_GRADO_URG":0, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"18181", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"3165", "STRING_X_PRESTAZIONE":  "3413", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_Y_UE":"17842", "Y_GIORNO_SETTIMANA" :6, "Y_MESE_ANNO":3,  "Y_FASCIA_ORARIA":0, "Y_GIORNI_ALLA_PRENOTAZIONE":35}
+        {   "X_ETA":56, "X_SESSO":2, "STRING_X_CAP": "40068", "STRING_X_USL":"167313", 
+            "STRING_X_FASCIA":"1514", "X_GRADO_URG":5, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"0", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"807", "STRING_X_PRESTAZIONE": "2216", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_X_GRUPPO_EROGABILE":"3641",
+            "STRING_Y_STER":"17916", "STRING_Y_UE":"38977", 
+            "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":1, "Y_FASCIA_ORARIA":1, "Y_GIORNI_ALLA_PRENOTAZIONE":4},
+        {   "X_SESSO":2, "STRING_X_CAP": "40068", "STRING_X_USL":"167313", 
+            "STRING_X_FASCIA":"1514", "X_GRADO_URG":5, "STRING_X_QDGN":"0", "STRING_X_INVIANTE":"0", "STRING_X_ESENZIONE":"0", "STRING_X_PRESCRITTORE":"807", "STRING_X_PRESTAZIONE": "2216", "STRING_X_BRANCA_SPECIALISTICA":"17", "STRING_X_GRUPPO_EROGABILE":"3641",
+            "STRING_Y_STER":"17916", "STRING_Y_UE":"38977", "X_ETA":57,
+            "Y_GIORNO_SETTIMANA" :2, "Y_MESE_ANNO":1, "Y_FASCIA_ORARIA":1, "Y_GIORNI_ALLA_PRENOTAZIONE":4}
         ]
     #rlist = _filterCols(rlist)
     position_threshold = None
@@ -73,6 +80,7 @@ def _predict(rlistPar, position_threshold):
     
     # TRANSFORM JSON QUERY TO DATAFRAME
     dfraw = sqlContext.createDataFrame(rlist, schema=rankConfig.get_input_schema([]))
+    print(dfraw.show())
     request_col_names = dfraw.columns
     
     # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
