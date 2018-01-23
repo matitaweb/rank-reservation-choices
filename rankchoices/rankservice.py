@@ -210,7 +210,7 @@ if __name__ == '__main__':
     print("COLUMNS TO USED IN CLUSTERING: " + str(arguments_col))
     
     # LOAD SPARK
-    spark = SparkSession.builder.master("local").appName("Rank").config("spark.python.profile", "true").getOrCreate()
+    spark = SparkSession.builder.master("local[*]").appName("Rank").config("spark.python.profile", "true").getOrCreate()
     sqlContext = SQLContext(spark)
     
     

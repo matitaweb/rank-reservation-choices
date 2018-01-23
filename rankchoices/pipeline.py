@@ -72,13 +72,12 @@ kmeans_train_ds, kmeans_test_ds, cluster_freq_dict, accuracyDictList, mean_acc =
     
 # DATA LOADING
 def load_from_csv (filename, input_schema):
-    spark = SparkSession.builder.master("local").appName("Word Count").config("spark.python.profile", "true").getOrCreate()
+    spark = SparkSession.builder.master("local[*]").appName("Rank").config("spark.python.profile", "true").getOrCreate()
     result = spark.read.csv(filename, header=True, mode="DROPMALFORMED",  schema=input_schema, ignoreLeadingWhiteSpace=True, ignoreTrailingWhiteSpace=True)
     return result
 
 def load_from_parquet (filename):
-    
-    spark = SparkSession.builder.master("local").appName("Rank").config("spark.python.profile", "true").getOrCreate()
+    spark = SparkSession.builder.master("local[*]").appName("Rank").config("spark.python.profile", "true").getOrCreate()
     result = spark.read.parquet(filename)
     return result    
     
