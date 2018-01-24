@@ -3,6 +3,7 @@ from input_utils import InputPipeline
 from load_data_stage import DataLoaderService
 from pca_stage import PcaReductionService
 from kmeans_stage import KmeansService
+from dict_stage import DictService
 from pipeline_session import PipelineSession
 from pyspark.sql import SparkSession
 import datetime
@@ -39,7 +40,10 @@ _, _, time_duration_kmeans_snapshot =  kmeansService.snapshot_stage(spark, rankC
 
 
 #DICT
-
+dictService = DictService()
+time_duration_dict_load_data = dictService.load_data(spark, rankConfig, inputPipeline, pipelineSession)
+_, _, time_duration_dict_stage = dictService.start_stage(spark, rankConfig, inputPipeline, pipelineSession)
+_, _, time_duration_dict_snapshot =  dictService.snapshot_stage(spark, rankConfig, inputPipeline, pipelineSession);
 
 #TEST
 
