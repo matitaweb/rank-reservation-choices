@@ -16,13 +16,14 @@ class DataLoaderService:
     
     def load_data(self, spark, rankConfig, inputPipeline, pipelineSession):
         t1 = datetime.datetime.now()
-        time_duration_load_data = (datetime.datetime.now()-t1)
-        return time_duration_load_data
+        pipelineSession.time_duration_dataloader_load_data = (datetime.datetime.now()-t1)
+        return pipelineSession.time_duration_dataloader_load_data
         
     def start_stage(self, spark, rankConfig, inputPipeline, pipelineSession):
         
         t1 = datetime.datetime.now()
         
+        t2 = datetime.datetime.now()
         #load csv
         dfraw = rank_utils.load_from_csv (spark, inputPipeline.input_filename, rankConfig.get_input_schema([]))
         
@@ -32,40 +33,43 @@ class DataLoaderService:
         
         # QUANTIZE Y_GIORNI_ALLA_PRENOTAZIONE (ONLY ONE)
         dfq = quantize_all_cols(dfraw, rankConfig.getArgumentsColToQuantize())
+        pipelineSession.time_duration_dataloader_quantize = (datetime.datetime.now()-t2)
+        print("QUANTIZE DONE in " + str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_quantize.total_seconds())))
         
         # METADATA FOR COLUMN RELOAD
+        t2 = datetime.datetime.now()
         metadataDict = get_metadata(dfq)
         df = add_metadata(dfq, metadataDict)
         save_metadata(df, inputPipeline.metadata_file_name_dir)
-        
+        pipelineSession.time_duration_dataloader_metadata = (datetime.datetime.now()-t2)
+        print("METADATA DONE in " + str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_metadata.total_seconds())))
        
         # STRING INDEXER
+        t2 = datetime.datetime.now()
         arguments_col_string = rankConfig.getArgumentsColString([])
-        indexer_dict = get_stringindexer_model_dict(arguments_col_string, df)
-        save_indexer(inputPipeline.string_indexer_path_dir, indexer_dict)
-            
-        dfi = apply_stringindexer_model_dict(arguments_col_string, df, indexer_dict)
-        
+        pipelineSession.indexer_dict = get_stringindexer_model_dict(arguments_col_string, df)
+        save_indexer(inputPipeline.string_indexer_path_dir, pipelineSession.indexer_dict)
+        dfi = apply_stringindexer_model_dict(arguments_col_string, df, pipelineSession.indexer_dict)
+        pipelineSession.time_duration_dataloader_indexer= (datetime.datetime.now()-t2)
+        print("STRING INDEXER DONE in " + str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_indexer.total_seconds())))
         
         # ONE HOT ENCODING
+        t2 = datetime.datetime.now()
         arguments_col_to_drop = rankConfig.getArgumentsColToDrop()
         arguments_col_not_ohe = rankConfig.getArgumentsColNotOHE(arguments_col_to_drop)
         arguments_col = rankConfig.getArgumentsColX(arguments_col_to_drop) + rankConfig.getArgumentsColY(arguments_col_to_drop)
         ohe_col = rankConfig.getOheCol(arguments_col, arguments_col_not_ohe)
-        print('OHE_COLS: ' + str(ohe_col))
         encodersDict= get_onehotencoding_model(arguments_col, ohe_col, arguments_col_not_ohe)
         df_ohe = apply_onehotencoding_model(dfi, arguments_col_not_ohe, encodersDict, rankConfig.getOheFeatureOutputColName())
+        pipelineSession.time_duration_dataloader_ohe= (datetime.datetime.now()-t2)
+        print("ONE HOT ENCODIG DONE in " + str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_ohe.total_seconds())))
         
         # TRAINING / TEST SPLIT
-        (train_ds, test_ds) = df_ohe.randomSplit(inputPipeline.split, inputPipeline.random_seed)
+        (pipelineSession.load_data_stage_train_ds, pipelineSession.load_data_stage_test_ds) = df_ohe.randomSplit(inputPipeline.split, inputPipeline.random_seed)
     
-        # PUT DATA IN PIPELINE SESSION
-        pipelineSession.load_data_stage_train_ds = train_ds
-        pipelineSession.load_data_stage_test_ds = test_ds
+        pipelineSession.time_duration_dataloader_start_stage = (datetime.datetime.now()-t1)
         
-        time_duration_start_stage = (datetime.datetime.now()-t1)
-        
-        return train_ds, test_ds, time_duration_start_stage
+        return pipelineSession.load_data_stage_train_ds, pipelineSession.load_data_stage_test_ds, pipelineSession.time_duration_dataloader_start_stage
         
         
     def snapshot_stage(self, spark, rankConfig, inputPipeline, pipelineSession):
@@ -77,11 +81,60 @@ class DataLoaderService:
         if(pipelineSession.load_data_stage_test_ds != None):
             pipelineSession.load_data_stage_test_ds.write.parquet(inputPipeline.output_test_file_name, mode="overwrite")
         
-        time_duration_snapshot_stage = (datetime.datetime.now()-t1)
+        pipelineSession.time_duration_dataloader_snapshot_stage = (datetime.datetime.now()-t1)
         
-        return pipelineSession.load_data_stage_train_ds, pipelineSession.load_data_stage_test_ds, time_duration_snapshot_stage
+        return pipelineSession.load_data_stage_train_ds, pipelineSession.load_data_stage_test_ds, pipelineSession.time_duration_dataloader_snapshot_stage
+        
+    def write_report(self, rankConfig, inputPipeline, pipelineSession):
+        
+        tot_col = len(pipelineSession.load_data_stage_train_ds.head(1)[0][rankConfig.getOheFeatureOutputColName()])
+        k_pca = int(tot_col*inputPipeline.pca_perc/100)
+        split_col=('{0:,}'.format(pipelineSession.load_data_stage_train_ds.count()), '{0:,}'.format(pipelineSession.load_data_stage_test_ds.count()))
+    
+        file = open(inputPipeline.report_load_data_stage_filename, 'w')
+        file.write('CONF: \n')
+        file.write('------------------------------------'+'\n')
+        file.write('input: ' + str(inputPipeline.input_filename)+'\n\n')
+        
+        file.write('k_pca: ' + str(inputPipeline.pca_perc) + '% ' + str(k_pca)+ ' / '+str(tot_col)+'\n')
+        file.write('k_kmeans: ' + str(inputPipeline.k_means_num)+'\n')
+        file.write('train, test: ' + str(inputPipeline.split)+ ' -> ' + str(split_col) + '\n')
         
         
+        time_load = str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_load_data.total_seconds())) if(pipelineSession.time_duration_dataloader_load_data != None) else "-"
+        time_stage = str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_start_stage.total_seconds())) if(pipelineSession.time_duration_dataloader_start_stage != None) else "-"
+        time_snapshoot = str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_snapshot_stage.total_seconds())) if(pipelineSession.time_duration_dataloader_snapshot_stage != None) else "-"
+        time_quantize = str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_quantize.total_seconds())) if(pipelineSession.time_duration_dataloader_quantize != None) else "-"
+        time_metadata = str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_metadata.total_seconds())) if(pipelineSession.time_duration_dataloader_metadata != None) else "-"
+        time_indexer = str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_indexer.total_seconds())) if(pipelineSession.time_duration_dataloader_indexer != None) else "-"
+        time_ohe = str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_ohe.total_seconds())) if(pipelineSession.time_duration_dataloader_ohe != None) else "-"
+
+        arguments_col_to_drop = rankConfig.getArgumentsColToDrop()
+        arguments_col_not_ohe = rankConfig.getArgumentsColNotOHE(arguments_col_to_drop)
+        arguments_col = rankConfig.getArgumentsColX(arguments_col_to_drop) + rankConfig.getArgumentsColY(arguments_col_to_drop)
+        ohe_col = rankConfig.getOheCol(arguments_col, arguments_col_not_ohe)
+        
+        
+        file.write('\nLOADING STAGE: \n')
+        file.write('------------------------')
+        file.write('time load: ' + time_load +'  \n')
+        file.write('time stage: ' + time_stage +'  \n')
+        
+        file.write('> time quantize: ' + time_quantize +'  \n')
+        file.write('> time metadata: ' + time_metadata +'  \n')
+        file.write('> time indexer: ' + time_indexer +'  \n')
+        file.write('> time ohe: ' + time_ohe +'  \n')
+        
+        file.write('time snapshoot: ' + time_snapshoot +'  \n\n')
+        file.write('ohe_col: ' + str(ohe_col) +'  \n')
+        
+        file.write('\nIndexer created: \n')
+        for k,_ in pipelineSession.indexer_dict.items():
+            file.write('indexer: ' + k +'  \n')
+        
+        file.write('------------------------------------'+'\n')
+    
+        file.close()
 
     
 def quantize_all_cols(dfraw, arguments_col_to_quantize):
@@ -198,5 +251,4 @@ def save_indexer(string_indexer_path_dir, indexer_dict):
         
     for k,indexer in indexer_dict.items():
         string_indexer_path = os.path.join(string_indexer_path_dir,k)
-        print('Snaphot indexer: ' + string_indexer_path)
         indexer.save(string_indexer_path)

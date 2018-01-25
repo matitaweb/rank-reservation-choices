@@ -72,8 +72,7 @@ def save_model_info(pipelineSession, rankConfig, inputPipeline):
     tot_col = len(pipelineSession.pca_stage_train_ds.head(1)[0][rankConfig.getOheFeatureOutputColName()])
     
     wssse = pipelineSession.kmeans_model_fitted.computeCost(pipelineSession.kmeans_stage_train_ds)
-    print("Within Set Sum of Squared Errors = " + str(wssse))
-    
+
     # save json model info
     kmeans_centers = [str(center) for center in pipelineSession.kmeans_model_fitted.clusterCenters()]
 

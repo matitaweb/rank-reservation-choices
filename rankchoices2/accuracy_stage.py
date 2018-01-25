@@ -8,6 +8,7 @@ import datetime
 import json
 import codecs
 from multiprocessing import Process
+import numpy as np
 
 class AccuracyService:
     def __init__(self):
@@ -29,9 +30,8 @@ class AccuracyService:
         if(pipelineSession.cluster_freq_dict == None):
             pipelineSession.cluster_freq_dict = load_cluster_freq_dict(inputPipeline.cluster_freq_dict_filename)
        
-        
-        time_duration_load_data = (datetime.datetime.now()-t1)
-        return time_duration_load_data
+        pipelineSession.time_duration_accuracy_load_data = (datetime.datetime.now()-t1)
+        return pipelineSession.time_duration_accuracy_load_data
         
     
     def start_stage(self, spark, rankConfig, inputPipeline, pipelineSession):
@@ -53,36 +53,12 @@ class AccuracyService:
 
         arguments_col_y = rankConfig.getArgumentsColY([])
         
-        accuracyDictList = test_accuracy(pipelineSession.kmeans_stage_test_ds, arguments_col_y, pipelineSession.cluster_freq_dict)
+        pipelineSession.accuracyDictList = test_accuracy(pipelineSession.kmeans_stage_test_ds, arguments_col_y, pipelineSession.cluster_freq_dict)
         
         
-        ###################
-        # REPORT ACCURACY #
-        ###################
-        tot_rows = pipelineSession.kmeans_stage_train_ds.count() + pipelineSession.kmeans_stage_test_ds.count()
-        split_col=(pipelineSession.kmeans_stage_train_ds.count(), pipelineSession.kmeans_stage_test_ds.count())
-        
-        
-        
-            
-        tot_col = len(kmeans_train_ds.head(1)[0][rankConfig.getOheFeatureOutputColName()])
-        k_pca = int(tot_col*k_pca_perc/100)
-        
-        # Evaluate clustering by computing Within Set Sum of Squared Errors.
-        wssse = pipelineSession.kmeans_model_fitted.computeCost(pipelineSession.kmeans_stage_train_ds)
-        
-        # save json model info
-        kmeans_centers = [str(center) for center in pipelineSession.kmeans_model_fitted.clusterCenters()]
 
-    
-        k_pca = int(tot_col*inputPipeline.pca_perc/100)
-
-        if os.path.exists(inputPipeline.report_filename): 
-            os.remove(inputPipeline.report_filename)
-        write_report(inputPipeline.report_filename, tot_col, k_means_num, arguments_col_y, accuracyDictList, position_threshold, k_pca=k_pca, k_pca_perc=k_pca_perc, split=split, split_col=split_col)
-        
-        time_duration_start_stage = (datetime.datetime.now()-t1)
-        return pipelineSession.kmeans_stage_train_ds, pipelineSession.kmeans_stage_test_ds, time_duration_start_stage
+        pipelineSession.time_duration_accuracy_start_stage = (datetime.datetime.now()-t1)
+        return pipelineSession.kmeans_stage_train_ds, pipelineSession.kmeans_stage_test_ds, pipelineSession.time_duration_accuracy_start_stage
         
     
     
@@ -90,10 +66,127 @@ class AccuracyService:
         
         t1 = datetime.datetime.now()
 
-        time_duration_snapshot_stage = (datetime.datetime.now()-t1)
+        pipelineSession.time_duration_accuracy_snapshot_stage = (datetime.datetime.now()-t1)
         
-        return pipelineSession.kmeans_stage_train_ds, pipelineSession.kmeans_stage_test_ds, time_duration_snapshot_stage
+        return pipelineSession.kmeans_stage_train_ds, pipelineSession.kmeans_stage_test_ds, pipelineSession.time_duration_accuracy_snapshot_stage
         
+        
+    def write_report(self, rankConfig, inputPipeline, pipelineSession):
+        
+        tot_col = len(pipelineSession.kmeans_stage_train_ds.head(1)[0][rankConfig.getOheFeatureOutputColName()])
+        k_pca = int(tot_col*inputPipeline.pca_perc/100)
+        split_col=('{0:,}'.format(pipelineSession.kmeans_stage_train_ds.count()), '{0:,}'.format(pipelineSession.kmeans_stage_test_ds.count()))
+    
+        file = open(inputPipeline.report_accuracy_stage_filename, 'w')
+        file.write('CONF: \n')
+        file.write('------------------------------------'+' \n')
+        file.write('input train: ' + str(inputPipeline.output_kmeans_train_ds_filename)+' \n')
+        file.write('input test:  ' + str(inputPipeline.output_kmeans_test_ds_filename)+' \n')
+        file.write('input kmeans model: ' + str(inputPipeline.file_name_dir_kmeans)+' \n')
+        file.write('input dict: ' + str(inputPipeline.cluster_freq_dict_filename)+ ' \n\n')
+        
+        file.write('k_pca: ' + str(inputPipeline.pca_perc) + '% ' + str(k_pca)+ ' / '+str(tot_col)+' \n')
+        file.write('k_kmeans: ' + str(inputPipeline.k_means_num)+'\n')
+        file.write('train, test: ' + str(inputPipeline.split)+ ' -> ' + str(split_col) + ' \n')
+        file.write('\nAccuracy position threshold: ' + str(inputPipeline.position_test_threshold)+'\n')
+        
+        time_load = str(datetime.timedelta(seconds=pipelineSession.time_duration_accuracy_load_data.total_seconds())) if(pipelineSession.time_duration_accuracy_load_data != None) else "-"
+        time_stage = str(datetime.timedelta(seconds=pipelineSession.time_duration_accuracy_start_stage.total_seconds())) if(pipelineSession.time_duration_accuracy_start_stage != None) else "-"
+        time_snapshoot = str(datetime.timedelta(seconds=pipelineSession.time_duration_accuracy_snapshot_stage.total_seconds())) if(pipelineSession.time_duration_accuracy_snapshot_stage != None) else "-"
+        
+        
+        file.write('\nACCURACY STAGE: \n')
+        file.write('------------------------'+'  \n')
+        file.write('time load: ' + time_load +'  \n')
+        file.write('time stage: ' + time_stage +'  \n')
+        file.write('time snapshoot: ' + time_snapshoot +'  \n\n')
+        
+        
+        arguments_col_y = rankConfig.getArgumentsColY([])
+
+        # count threshold per ogni argomento
+        accuracyDictList = pipelineSession.accuracyDictList
+        accuracyMeanList = [e['mean_acc'] for e in accuracyDictList]
+
+        tot_values_cluster = [ value[arguments_col_y[0]]['tot_values'] for _, value in pipelineSession.cluster_freq_dict.items()]
+        mean_tot_values_cluster = np.mean(tot_values_cluster)
+        min_tot_values_cluster= np.min(tot_values_cluster)
+        max_tot_values_cluster = np.max(tot_values_cluster)
+        median_tot_values_cluster = np.median(tot_values_cluster)
+        
+        file.write('CLUSTER INFO ( n. '+str(len(tot_values_cluster))+' )\n')
+        file.write('------------------------------------'+'\n')
+        file.write("media per cluster: " + str(mean_tot_values_cluster)+'\n')
+        file.write("minima dimensione cluster: " + str(min_tot_values_cluster)+'\n')
+        file.write("massima dimensione cluster: " + str(max_tot_values_cluster)+'\n')
+        file.write("mediana dimensione cluster: " + str(median_tot_values_cluster)+'\n\n')
+        
+        for c in arguments_col_y:
+            
+            positionList = [e[c]["LAST_POS"] if e[c]["POS"] is None  else e[c]["POS"]  for e in accuracyDictList]
+            
+
+            mean_pos = np.mean(positionList)
+            min_pos = np.min(positionList)
+            max_pos = np.max(positionList)
+            median_pos = np.median(positionList)
+            count_position = len(positionList)
+            count_position_threshold = count_position
+            
+            file.write('\n')
+            file.write('------------------------------------'+'\n')
+            file.write('> '+str(c)+'\n')
+            file.write('------------------------------------'+'\n')
+            file.write("mean_pos: " + str(mean_pos)+'\n')
+            file.write("min_pos: " + str(min_pos)+'\n')
+            file.write("max_pos: " + str(max_pos)+'\n')
+            file.write("median_pos: " + str(median_pos)+'\n')
+            file.write("count_position: " + str(count_position)+'\n\n')
+            
+            file.write('CMC: '+'\n')
+            if not (inputPipeline.position_test_threshold is None):
+                for i in range(inputPipeline.position_test_threshold):
+                    positionListThreshold = [e for e in positionList if e <= i]
+                    count_position_threshold = len(positionListThreshold)
+                    count_position_threshold_perc = float(count_position_threshold)/float(count_position)
+                    file.write("ENTRO LA POS: " + str(i) + " -> " + str(count_position_threshold_perc) +" = " + str(count_position_threshold)  +"/" + str(count_position)+'\n')
+            file.write('\n\n')
+        
+            mean = np.mean(accuracyMeanList)
+            file.write('mean acc.: ' + str(mean)+'\n')
+            file.write('------------------------------------'+'\n\n')
+            
+            
+            for c in arguments_col_y:
+                m = np.mean([e[c]['ACC'] for e in accuracyDictList])
+                file.write("MEAN: " + str(c) + ' -> ' + str(m)+'\n')
+                
+            file.write('\n\n\n')
+            
+            maxV = np.max(accuracyMeanList)
+            file.write('max acc.: ' + str(maxV)+'\n')
+            file.write('------------------------------------'+'\n\n')
+            
+            for c in arguments_col_y:
+                m = np.max([e[c]['ACC'] for e in accuracyDictList])
+                file.write("MAX: " + str(c) + ' -> ' + str(m)+'\n')
+            
+            file.write('\n\n\n')
+            
+            minV = np.min(accuracyMeanList)
+            file.write('min acc.: ' + str(minV)+'\n')
+            file.write('------------------------------------'+'\n\n')
+            
+            for c in arguments_col_y:
+                m = np.min([e[c]['ACC'] for e in accuracyDictList])
+                file.write("MIN: " + str(c) + ' -> ' + str(m)+'\n')        
+            
+            file.write('------------------------------------'+'\n\n')
+            
+            
+
+        
+        file.close()
 
 # http://www.codehamster.com/2015/03/09/different-ways-to-calculate-the-euclidean-distance-in-python/
 def euclidean0_0 (vector1, vector2):
@@ -149,8 +242,7 @@ def get_accuracy(r, cluster_freq_dict, c, arguments_col_y):
         position = None
         acc= 0
         accuracyDict[ar] = {}
-        
-        if ar in cluster_freq_dict[c]:
+        if ar in cluster_freq_dict[str(c)]:
             last_position = cluster_freq_dict[c][ar]['last']
             if val in cluster_freq_dict[c][ar]:
                 position = cluster_freq_dict[c][ar][val]['POS'] - 1

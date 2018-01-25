@@ -1,10 +1,15 @@
 from rank_utils import RankConfig
 from input_utils import InputPipeline
+from pipeline_session import PipelineSession
+#import locale
+#locale.setlocale(locale.LC_ALL, 'it_IT.UTF8')
+
 from load_data_stage import DataLoaderService
 from pca_stage import PcaReductionService
 from kmeans_stage import KmeansService
 from dict_stage import DictService
-from pipeline_session import PipelineSession
+from accuracy_stage import AccuracyService
+
 from pyspark.sql import SparkSession
 import datetime
 
@@ -20,34 +25,37 @@ spark = SparkSession.builder.master("local[*]").appName("Rank").config("spark.py
 # LOAD
 time_duration_loading_load_data = dataLoaderService.load_data(spark, rankConfig, inputPipeline, pipelineSession)
 _, _, time_duration_loading_stage = dataLoaderService.start_stage(spark, rankConfig, inputPipeline, pipelineSession)
-_, _, time_duration_loading_snapshot =  dataLoaderService.snapshot_stage(spark, rankConfig, inputPipeline, pipelineSession);
-print('Snapshot train-set: ' + inputPipeline.output_train_file_name)
-print('Snapshot test-set: ' + inputPipeline.output_test_file_name)
-print('SNAPSHOT LOAD  save in: ' + str(datetime.timedelta(seconds=time_duration_loading_snapshot.total_seconds())))
+_, _, time_duration_loading_snapshot =  dataLoaderService.snapshot_stage(spark, rankConfig, inputPipeline, pipelineSession)
+dataLoaderService.write_report(rankConfig, inputPipeline, pipelineSession)
+
         
 
 # PCA
 pcaReductionService = PcaReductionService()
 time_duration_pca_load_data = pcaReductionService.load_data(spark, rankConfig, inputPipeline, pipelineSession)
 _, _, time_duration_pca_stage = pcaReductionService.start_stage(spark, rankConfig, inputPipeline, pipelineSession)
-_, _, time_duration_pca_snapshot =  pcaReductionService.snapshot_stage(spark, rankConfig, inputPipeline, pipelineSession);
+_, _, time_duration_pca_snapshot =  pcaReductionService.snapshot_stage(spark, rankConfig, inputPipeline, pipelineSession)
 
 #KMEANS
 kmeansService = KmeansService()
 time_duration_kmeans_load_data = kmeansService.load_data(spark, rankConfig, inputPipeline, pipelineSession)
 _, _, time_duration_kmeans_stage = kmeansService.start_stage(spark, rankConfig, inputPipeline, pipelineSession)
-_, _, time_duration_kmeans_snapshot =  kmeansService.snapshot_stage(spark, rankConfig, inputPipeline, pipelineSession);
+_, _, time_duration_kmeans_snapshot =  kmeansService.snapshot_stage(spark, rankConfig, inputPipeline, pipelineSession)
 
 
 #DICT
 dictService = DictService()
 time_duration_dict_load_data = dictService.load_data(spark, rankConfig, inputPipeline, pipelineSession)
 _, _, time_duration_dict_stage = dictService.start_stage(spark, rankConfig, inputPipeline, pipelineSession)
-_, _, time_duration_dict_snapshot =  dictService.snapshot_stage(spark, rankConfig, inputPipeline, pipelineSession);
+_, _, time_duration_dict_snapshot =  dictService.snapshot_stage(spark, rankConfig, inputPipeline, pipelineSession)
+dictService.write_report(rankConfig, inputPipeline, pipelineSession)
 
 #TEST
-
-
+accuracyService = AccuracyService()
+time_duration_dict_load_data = accuracyService.load_data(spark, rankConfig, inputPipeline, pipelineSession)
+_, _, time_duration_dict_stage = accuracyService.start_stage(spark, rankConfig, inputPipeline, pipelineSession)
+_, _, time_duration_dict_snapshot =  accuracyService.snapshot_stage(spark, rankConfig, inputPipeline, pipelineSession)
+accuracyService.write_report(rankConfig, inputPipeline, pipelineSession)
 
 
 """
