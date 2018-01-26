@@ -7,13 +7,17 @@ import shutil
 import datetime
 import json
 import codecs
+import math
 from multiprocessing import Process
 import numpy as np
+from pyspark.sql.functions import udf
+from pyspark.sql.types import IntegerType
+from pyspark.sql.types import FloatType
 
 class AccuracyService:
+    
     def __init__(self):
         pass
-        
         
     def load_data(self, spark, rankConfig, inputPipeline, pipelineSession):
         t1 = datetime.datetime.now()
@@ -53,8 +57,14 @@ class AccuracyService:
 
         arguments_col_y = rankConfig.getArgumentsColY([])
         
+        t2 = datetime.datetime.now()
         pipelineSession.accuracyDictList = test_accuracy(pipelineSession.kmeans_stage_test_ds, arguments_col_y, pipelineSession.cluster_freq_dict)
+        pipelineSession.time_duration_accuracy_start_stage_t1 = (datetime.datetime.now()-t2)
         
+        t2 = datetime.datetime.now()
+        kmeans_stage_test_ds_acc = test_accuracy_df(spark, rankConfig, inputPipeline, pipelineSession)
+        pipelineSession.accuracyDictListNew = test_accuracy_df_to_list(kmeans_stage_test_ds_acc, arguments_col_y)
+        pipelineSession.time_duration_accuracy_start_stage_t2 = (datetime.datetime.now()-t2)
         
 
         pipelineSession.time_duration_accuracy_start_stage = (datetime.datetime.now()-t1)
@@ -125,7 +135,6 @@ class AccuracyService:
             
             positionList = [e[c]["LAST_POS"] if e[c]["POS"] is None  else e[c]["POS"]  for e in accuracyDictList]
             
-
             mean_pos = np.mean(positionList)
             min_pos = np.min(positionList)
             max_pos = np.max(positionList)
@@ -183,37 +192,9 @@ class AccuracyService:
             
             file.write('------------------------------------'+'\n\n')
             
-            
-
-        
         file.close()
 
-# http://www.codehamster.com/2015/03/09/different-ways-to-calculate-the-euclidean-distance-in-python/
-def euclidean0_0 (vector1, vector2):
-    ''' calculate the euclidean distance
-        input: numpy.arrays or lists
-        return: 1. quard distance, 2. euclidean distance
-    '''
-    quar_distance = 0
-    
-    if(len(vector1) != len(vector2)):
-        raise RuntimeWarning("The length of the two vectors are not the same!")
-    zipVector = zip(vector1, vector2)
 
-    for member in zipVector:
-        quar_distance += (member[1] - member[0]) ** 2
-
-    return quar_distance, math.sqrt(quar_distance)
- 
- 
-def euclidean0_1(vector1, vector2):
-    '''calculate the euclidean distance, no numpy
-    input: numpy.arrays or lists
-    return: euclidean distance
-    '''
-    dist = [(a - b)**2 for a, b in zip(vector1, vector2)]
-    dist = math.sqrt(sum(dist))
-    return dist
     
 # https://ragrawal.wordpress.com/2017/06/17/reusable-spark-custom-udf/
 
@@ -227,6 +208,9 @@ def test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict):
         c= str(r['prediction'])
         accuracyDict = get_accuracy(r, cluster_freq_dict, c, arguments_col_y)
         accuracyDictList.append(accuracyDict)
+    
+    accuracyDictListNew = []
+    
             
     return accuracyDictList
 
@@ -265,3 +249,97 @@ def load_cluster_freq_dict(file_name_dir):
         d = json.load(json_data)
         return d
 
+
+def calculate_accuracy(cluster_freq_dict, ar):
+
+    def _calculate_accuracy(c, val):
+        acc = float(0)
+        c_str = str(c)
+        if ar in cluster_freq_dict[str(c_str)]:
+            last_position = cluster_freq_dict[c_str][ar]['last']
+            val_str = str(val)
+            if val_str in cluster_freq_dict[c_str][ar]:
+                position = cluster_freq_dict[c_str][ar][val_str]['POS'] - 1
+                acc = (float(last_position)-float(position))/float(last_position)
+
+        return acc
+ 
+    return _calculate_accuracy
+
+def calculate_last_pos(cluster_freq_dict, ar):
+
+    def _calculate_last_pos(c, val):
+        last_position = None
+        c_str = str(c)
+        if ar in cluster_freq_dict[str(c_str)]:
+            last_position = cluster_freq_dict[c_str][ar]['last']
+        return last_position
+ 
+    return _calculate_last_pos
+
+def calculate_pos(cluster_freq_dict, ar):
+
+    def _calculate_pos(c, val):
+        position = None
+        c_str = str(c)
+        if ar in cluster_freq_dict[str(c_str)]:
+            val_str = str(val)
+            if val_str in cluster_freq_dict[c_str][ar]:
+                position = cluster_freq_dict[c_str][ar][val_str]['POS'] - 1
+                
+        return position
+ 
+    return _calculate_pos
+
+
+# https://ragrawal.wordpress.com/2017/06/17/reusable-spark-custom-udf/ 
+# from accuracy_stage import test_accuracy_df
+def test_accuracy_df(spark, rankConfig, inputPipeline, pipelineSession):
+    kmeans_stage_test_ds = pipelineSession.kmeans_stage_test_ds
+    arguments_col_y = rankConfig.getArgumentsColY([]) 
+    cluster_freq_dict = pipelineSession.cluster_freq_dict
+    
+    kmeans_stage_test_ds_acc = kmeans_stage_test_ds
+    for ar in arguments_col_y:
+        udf_calculate_accuracy = udf(calculate_accuracy(cluster_freq_dict, ar), FloatType())
+        kmeans_stage_test_ds_acc = kmeans_stage_test_ds_acc.withColumn("ACC_"+ar, udf_calculate_accuracy(kmeans_stage_test_ds['prediction'],kmeans_stage_test_ds[ar] ))
+        
+        udf_calculate_last_pos = udf(calculate_last_pos(cluster_freq_dict, ar), IntegerType())
+        kmeans_stage_test_ds_acc = kmeans_stage_test_ds_acc.withColumn("LAST_POS_"+ar, udf_calculate_last_pos(kmeans_stage_test_ds['prediction'],kmeans_stage_test_ds[ar] ))
+        
+        udf_calculate_pos = udf(calculate_pos(cluster_freq_dict, ar), IntegerType())
+        kmeans_stage_test_ds_acc = kmeans_stage_test_ds_acc.withColumn("POS_"+ar, udf_calculate_pos(kmeans_stage_test_ds['prediction'],kmeans_stage_test_ds[ar] ))
+        
+    return kmeans_stage_test_ds_acc
+  
+def test_accuracy_df_to_list(kmeans_stage_test_ds_acc, arguments_col_y):
+    accuracyDictList = []
+    for r in kmeans_stage_test_ds_acc.collect():
+        accuracyDict = {}
+        accuracyDict['prediction'] = str(r['prediction'])
+        tot_acc=0.0
+        for ar in arguments_col_y:
+            accuracyDict[ar] = {}
+            val= str(r[ar])
+            accuracyDict[ar]["VAL"]=val
+            accuracyDict[ar]["POS"]=r["POS_"+ar]
+            accuracyDict[ar]["LAST_POS"]=r["LAST_POS_"+ar]
+                
+            accuracyDict[ar]['ACC'] = r["ACC_"+ar]
+            tot_acc = tot_acc+r["ACC_"+ar]
+            
+        accuracyDict['tot_acc'] = tot_acc
+        accuracyDict['mean_acc'] = tot_acc/len(arguments_col_y)
+        accuracyDictList.append(accuracyDict)
+        
+    return accuracyDictList
+
+    
+    """
+from accuracy_stage import calculate_accuracy
+from pyspark.sql.functions import udf
+from pyspark.sql.types import DecimalType
+from pyspark.sql.types import FloatType
+
+kmeans_stage_test_ds_acc
+    """

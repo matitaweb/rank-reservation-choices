@@ -1,7 +1,7 @@
 
 class InputPipeline:
 
-    def __init__(self, base_filename = "../data/bo_since19-01-2018_annullato_no-strt_e_prst_valide", split=[0.09, 0.01], pca_perc=1, k_means_num=1000, position_test_threshold=10, stage_start="LOAD", stage_stop="TEST", stage_snapshots =[], random_seed=1):
+    def __init__(self, base_filename = "../data/bo_since19-01-2018_annullato_no-strt_e_prst_valide", split=[0.09, 0.01], pca_perc=1, k_means_num=1000, position_test_threshold=10, stage_start="LOAD", stage_stop="TEST", stage_snapshots=['LOAD', 'PCA', 'KMEANS', 'DICT', 'TEST'], random_seed=1):
         
         self.base_filename = base_filename
         self.split = split
@@ -12,6 +12,7 @@ class InputPipeline:
         self.stage_stop = stage_stop
         self.stage_snapshots = stage_snapshots
         self.random_seed = random_seed
+        
         self.input_filename          = base_filename+".csv"
     
         self.metadata_file_name_dir  = base_filename + "-metadata"

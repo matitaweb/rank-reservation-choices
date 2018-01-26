@@ -8,6 +8,7 @@ import datetime
 from pyspark.ml.feature import OneHotEncoder, StringIndexer, StringIndexerModel, VectorAssembler
 from pyspark.sql.types import IntegerType
 from pyspark.ml import Pipeline
+from pyspark.sql import SQLContext
 
 class DataLoaderService:
 
@@ -16,6 +17,16 @@ class DataLoaderService:
     
     def load_data(self, spark, rankConfig, inputPipeline, pipelineSession):
         t1 = datetime.datetime.now()
+        # if data are not preloaded
+        if(pipelineSession.load_data_stage_input_data == None):
+            if(pipelineSession.load_data_stage_input_data_json == None):
+                # loading from csv (default)
+                pipelineSession.load_data_stage_input_data = rank_utils.load_from_csv (spark, inputPipeline.input_filename, rankConfig.get_input_schema([]))
+            else :
+                # loading from json
+                sqlContext = SQLContext(spark)
+                pipelineSession.load_data_stage_input_data = sqlContext.createDataFrame(pipelineSession.load_data_stage_input_data_json, schema=rankConfig.get_input_schema([]))
+            
         pipelineSession.time_duration_dataloader_load_data = (datetime.datetime.now()-t1)
         return pipelineSession.time_duration_dataloader_load_data
         
@@ -24,8 +35,9 @@ class DataLoaderService:
         t1 = datetime.datetime.now()
         
         t2 = datetime.datetime.now()
+        
         #load csv
-        dfraw = rank_utils.load_from_csv (spark, inputPipeline.input_filename, rankConfig.get_input_schema([]))
+        dfraw = pipelineSession.load_data_stage_input_data
         
         # filter row with cell null
         for x in rankConfig.get_input_schema([]):
@@ -116,7 +128,7 @@ class DataLoaderService:
         
         
         file.write('\nLOADING STAGE: \n')
-        file.write('------------------------')
+        file.write('------------------------'+'  \n')
         file.write('time load: ' + time_load +'  \n')
         file.write('time stage: ' + time_stage +'  \n')
         

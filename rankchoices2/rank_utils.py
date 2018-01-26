@@ -7,6 +7,7 @@ UTILS
 
 from pyspark.sql.types import IntegerType
 import pyspark.sql.functions as functions
+import math
 
 class RankConfig:
     """
@@ -198,5 +199,29 @@ def load_from_parquet (spark, filename):
     result = spark.read.parquet(filename)
     return result
 
+# http://www.codehamster.com/2015/03/09/different-ways-to-calculate-the-euclidean-distance-in-python/
+def euclidean0_0 (vector1, vector2):
+    ''' calculate the euclidean distance
+        input: numpy.arrays or lists
+        return: 1. quard distance, 2. euclidean distance
+    '''
+    quar_distance = 0
+    
+    if(len(vector1) != len(vector2)):
+        raise RuntimeWarning("The length of the two vectors are not the same!")
+    zipVector = zip(vector1, vector2)
 
+    for member in zipVector:
+        quar_distance += (member[1] - member[0]) ** 2
+
+    return quar_distance, math.sqrt(quar_distance)
+ 
+def euclidean0_1(vector1, vector2):
+    '''calculate the euclidean distance, no numpy
+    input: numpy.arrays or lists
+    return: euclidean distance
+    '''
+    dist = [(a - b)**2 for a, b in zip(vector1, vector2)]
+    dist = math.sqrt(sum(dist))
+    return dist
   

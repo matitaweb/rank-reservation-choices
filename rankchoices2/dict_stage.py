@@ -114,13 +114,18 @@ class DictService:
         min_tot_values_cluster= np.min(tot_values_cluster)
         max_tot_values_cluster = np.max(tot_values_cluster)
         median_tot_values_cluster = np.median(tot_values_cluster)
+        percentileList = []
+        for i in range(0, 100, 10):
+            percentileList.append(np.percentile(tot_values_cluster, i))
         
         file.write('CLUSTER INFO ( n. '+str(len(tot_values_cluster))+' )\n')
         file.write('------------------------------------'+'\n')
         file.write("media elementi per cluster: " + str(mean_tot_values_cluster)+'\n')
-        file.write("minimo numero di elementi per cluster: " + str(min_tot_values_cluster)+'\n')
+        file.write("minimo numero di elementi per cluster:  " + str(min_tot_values_cluster)+'\n')
         file.write("massimo numero di elementi per cluster: " + str(max_tot_values_cluster)+'\n')
-        file.write("mediano numero di elementi per cluster: " + str(median_tot_values_cluster)+'\n\n')
+        file.write("mediana numero di elementi per cluster: " + str(median_tot_values_cluster)+'\n')
+        file.write("percentile 1/10 degli elementi per cluster: " + str(percentileList)+'\n\n')
+        
         
         for ar in arguments_col_y:
             tot_distinct_cluster = [ value[ar]['tot_distinct'] for _, value in pipelineSession.cluster_freq_dict.items()]
@@ -128,12 +133,17 @@ class DictService:
             min_tot_distinct_cluster= np.min(tot_distinct_cluster)
             max_tot_distinct_cluster = np.max(tot_distinct_cluster)
             median_tot_distinct_cluster = np.median(tot_distinct_cluster)
+            percentileList = []
+            for i in range(0, 100, 10):
+                percentileList.append(np.percentile(tot_distinct_cluster, i))
+                
             file.write('CLUSTER  per  ' + str(ar) +' \n')
             file.write('------------------------------------'+'\n')
             file.write("media numero di elementi distinti per cluster: " + str(mean_tot_distinct_cluster)+'\n')
-            file.write("minimo numero di elementi distinti cluster: " + str(min_tot_distinct_cluster)+'\n')
-            file.write("massimo numero di elementi distinti cluster: " + str(max_tot_distinct_cluster)+'\n')
-            file.write("mediana numero di elementi distinti cluster: " + str(median_tot_distinct_cluster)+'\n\n')
+            file.write("minimo numero di elementi distinti cluster:    " + str(min_tot_distinct_cluster)+'\n')
+            file.write("massimo numero di elementi distinti cluster:   " + str(max_tot_distinct_cluster)+'\n')
+            file.write("mediana numero di elementi distinti cluster:   " + str(median_tot_distinct_cluster)+'\n')
+            file.write("percentile 1/10 degli elementi per cluster:    " + str(percentileList)+'\n\n')
         
         file.close()
 
