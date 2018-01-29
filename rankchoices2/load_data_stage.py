@@ -69,9 +69,9 @@ class DataLoaderService:
         t2 = datetime.datetime.now()
         arguments_col_to_drop = rankConfig.getArgumentsColToDrop()
         arguments_col_not_ohe = rankConfig.getArgumentsColNotOHE(arguments_col_to_drop)
-        arguments_col = rankConfig.getArgumentsColX(arguments_col_to_drop) + rankConfig.getArgumentsColY(arguments_col_to_drop)
-        ohe_col = rankConfig.getOheCol(arguments_col, arguments_col_not_ohe)
-        encodersDict= get_onehotencoding_model(arguments_col, ohe_col, arguments_col_not_ohe)
+        #arguments_col = rankConfig.getArgumentsColX(arguments_col_to_drop) + rankConfig.getArgumentsColY(arguments_col_to_drop)
+        #ohe_col = rankConfig.getOheCol(arguments_col, arguments_col_not_ohe)
+        encodersDict= get_onehotencoding_model(rankConfig)
         df_ohe = apply_onehotencoding_model(dfi, arguments_col_not_ohe, encodersDict, rankConfig.getOheFeatureOutputColName())
         pipelineSession.time_duration_dataloader_ohe= (datetime.datetime.now()-t2)
         print("ONE HOT ENCODIG DONE in " + str(datetime.timedelta(seconds=pipelineSession.time_duration_dataloader_ohe.total_seconds())))
@@ -239,7 +239,16 @@ def apply_stringindexer_model_dict(string_argument_col, df, indexer_dict):
         df_indexed = df_indexed.withColumn(e[1], col(e[1]).alias(e[1], metadata=meta))
     return df_indexed
 
-def get_onehotencoding_model(arguments_col, ohe_col, arguments_col_not_ohe):
+
+def get_onehotencoding_model(rankConfig):
+    arguments_col_to_drop = rankConfig.getArgumentsColToDrop()
+    arguments_col_not_ohe = rankConfig.getArgumentsColNotOHE(arguments_col_to_drop)
+    arguments_col = rankConfig.getArgumentsColX(arguments_col_to_drop) + rankConfig.getArgumentsColY(arguments_col_to_drop)
+    ohe_col = rankConfig.getOheCol(arguments_col, arguments_col_not_ohe)
+    encodersDict= _get_onehotencoding_model(arguments_col, ohe_col, arguments_col_not_ohe)
+    return encodersDict
+
+def _get_onehotencoding_model(arguments_col, ohe_col, arguments_col_not_ohe):
     ohe_col_pair = zip([x for x in arguments_col if not x in arguments_col_not_ohe], ohe_col)
     encodersDict = {}
     for x in ohe_col_pair:

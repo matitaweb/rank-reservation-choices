@@ -46,7 +46,7 @@ if __name__ == '__main__':
         print("ARG: " + args.base_dir_path)
         base_dir = args.base_dir_path
     else:
-        base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/10k"
+        base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/bo_since19-01-2018_annullato_no-strt_e_prst_valid"
     
     if args.spark_home_path:
         print("ARG: " + args.spark_home_path)
@@ -70,11 +70,16 @@ if __name__ == '__main__':
     from load_data_stage import get_onehotencoding_model
     from load_data_stage import quantize_all_cols
     from load_data_stage import add_metadata
+    from load_data_stage import apply_stringindexer_model_dict
+    from load_data_stage import apply_onehotencoding_model
     
     from pyspark.sql import SparkSession
     from pyspark.sql import SQLContext
+    from pyspark import SparkContext
+    SparkContext.setSystemProperty('spark.ui.enabled', 'false') ## disable ui interface
     from pyspark.ml.feature import PCAModel
     from pyspark.ml.clustering import KMeansModel
+    from pyspark.sql.functions import col
     
     from rank_utils import RankConfig
     from input_utils import InputPipeline
@@ -86,20 +91,21 @@ if __name__ == '__main__':
     from kmeans_stage import KmeansService
     from dict_stage import DictService
     from accuracy_stage import AccuracyService
+    from accuracy_stage import get_accuracy
+    from accuracy_stage import test_accuracy_df
+    from accuracy_stage import test_accuracy_df_to_list
+    
     
     
     # dto's
     rankConfig = RankConfig();
     inputPipeline = InputPipeline()
-    pipelineSession = PipelineSession();
+    inputPipeline.base_filename = base_dir
+
     
-    # services
-    dataLoaderService = DataLoaderService()
-    pcaReductionService = PcaReductionService()
-    kmeansService = KmeansService()
-    dictService = DictService()
-    accuracyService = AccuracyService()
-    
+    # LOAD SPARK ENV
+    spark = SparkSession.builder.master("local[*]").appName("Rank").getOrCreate()
+    sqlContext = SQLContext(spark)
     
     # LOAD METADATA COLUMNS
     metadataDict = load_metadata(inputPipeline.metadata_file_name_dir)
@@ -108,12 +114,12 @@ if __name__ == '__main__':
     indexer_dict = load_stringindexer_model_dict(inputPipeline.string_indexer_path_dir)
     
     
-    # OHE
+    # OHE 
     arguments_col_to_drop = rankConfig.getArgumentsColToDrop()
     arguments_col_not_ohe = rankConfig.getArgumentsColNotOHE(arguments_col_to_drop)
-    arguments_col = rankConfig.getArgumentsColX(arguments_col_to_drop) + rankConfig.getArgumentsColY(arguments_col_to_drop)
-    ohe_col = rankConfig.getOheCol(arguments_col, arguments_col_not_ohe)
-    encodersDict= get_onehotencoding_model(arguments_col, ohe_col, arguments_col_not_ohe)
+    #arguments_col = rankConfig.getArgumentsColX(arguments_col_to_drop) + rankConfig.getArgumentsColY(arguments_col_to_drop)
+    #ohe_col = rankConfig.getOheCol(arguments_col, arguments_col_not_ohe)
+    encodersDict= get_onehotencoding_model(rankConfig)
     
     
     # LOAD PCA MODEL
@@ -123,6 +129,9 @@ if __name__ == '__main__':
     # LOAD KMEANS MODEL
     kmeans_model = KMeansModel.load(inputPipeline.file_name_dir_kmeans)  # load from file system 
     
+    with open(inputPipeline.model_info_filename) as model_info_file:    
+        kmeans_model_info = json.load(model_info_file)
+     
     
     # LOAD FREQUECY DICT
     with open(inputPipeline.cluster_freq_dict_filename) as dict_data_file:    
@@ -141,7 +150,7 @@ if __name__ == '__main__':
     time_duration_loading= (datetime.datetime.now()-t1)
     print ("Successfully imported Spark Modules " + str(datetime.timedelta(seconds=time_duration_loading.total_seconds())))
 
-
+    # start API REST
     app = Flask(__name__)
     
     @app.route('/', methods=['GET'])
@@ -183,15 +192,10 @@ if __name__ == '__main__':
         print(validationResult)
         
         rlist = validationResult['valid']
-        
-        
-        # LOAD SPARK ENV
-        spark = SparkSession.builder.master("local[*]").appName("Rank").getOrCreate()
-        sqlContext = SQLContext(spark)
     
         # TRANSFORM JSON QUERY TO DATAFRAME
         dfraw = sqlContext.createDataFrame(rlist, schema=rankConfig.get_input_schema([]))
-        print(dfraw.show())
+        #print(dfraw.show())
         
         # REMOVE NULLS
         for x in rankConfig.get_input_schema([]):
@@ -204,7 +208,7 @@ if __name__ == '__main__':
         df = add_metadata(dfq, metadataDict)
         
         
-        # INDEX (X_PRESTAZIONE, Y_UE) AS THE PCA MODEL
+        # APPLY INDEX COLUMNS 
         arguments_col_string = rankConfig.getArgumentsColString([])
         dfi = apply_stringindexer_model_dict(arguments_col_string, df, indexer_dict)
         
@@ -214,11 +218,13 @@ if __name__ == '__main__':
         #APPLY PCA
         df_pca = pca_model.transform(df_ohe)
         
-        #PREDICT KMEANS
+        #PREDICT KMEANS CLUSTER
         kmeans_df_pca = kmeans_model.transform(df_pca) 
         
+        # COLS THAT DEFINE FREQUENCY
+        arguments_col_y = rankConfig.getArgumentsColY([])
         
-        predList = kmeans_df_pca.collect()
+        
         #print(kmeans_df_pca.head(1))
         wssse = kmeans_model.computeCost(df_pca)
         #print("Within Set Sum of Squared Errors = " + str(wssse))
@@ -226,20 +232,23 @@ if __name__ == '__main__':
         time_duration_prepare = (datetime.datetime.now()-t1)
         print("PREDICTION: " + str(datetime.timedelta(seconds=time_duration_prepare.total_seconds())))
         
-        t1 = datetime.datetime.now()
+        
         result = {}
         result['version'] = "1.0.0"
-        result['model']="KMEAN:100, PCA:0.1"
+        result['model']= kmeans_model_info
         result['wssse'] = wssse
+        
+        
+        t1 = datetime.datetime.now()
         accuracyDictList = []
-        
-        
+        centers = kmeans_model.clusterCenters()
+        predList = kmeans_df_pca.collect()
         for r in predList:
             cluster_center = centers[r['prediction']]
             centerdistance = euclidean0_1(r['pca_features'], cluster_center)
             #print(kmeans_df_pca.columns)
             c= str(r['prediction'])
-            accuracyDict = pipe.get_accuracy(r, cluster_freq_dict, c, arguments_col_y, position_threshold)
+            accuracyDict = get_accuracy(r, cluster_freq_dict, c, arguments_col_y)
             accuracyDict['centerdistance'] = centerdistance
             accuracyDict['request']={}
             for colname in dfraw.columns:
@@ -253,8 +262,15 @@ if __name__ == '__main__':
             mean_acc  = accuracyDict['mean_acc']
             accuracyDict['mean_acc_norm'] = mean_acc * (tot_centerdistance-centerdistance)/tot_centerdistance
         
-        time_duration_prediction = (datetime.datetime.now()-t1)
-        print("ACCURACY: " + str(datetime.timedelta(seconds=time_duration_prediction.total_seconds())))
+        print("ACCURACY OLD: " + str(datetime.timedelta(seconds=(datetime.datetime.now()-t1).total_seconds())))
+    
+        """
+        t1 = datetime.datetime.now()
+        kmeans_stage_test_ds_acc = test_accuracy_df(kmeans_df_pca, arguments_col_y, cluster_freq_dict)
+        accuracyDictList2 = test_accuracy_df_to_list(kmeans_stage_test_ds_acc, arguments_col_y)
+        result['accuracyDictList2']= accuracyDictList2
+        print("ACCURACY NEW: " + str(datetime.timedelta(seconds=(datetime.datetime.now()-t1).total_seconds())))
+        """
     
         result['accuracyDictList']= accuracyDictList
         result['status'] ="OK"

@@ -62,7 +62,7 @@ class AccuracyService:
         pipelineSession.time_duration_accuracy_start_stage_t1 = (datetime.datetime.now()-t2)
         
         t2 = datetime.datetime.now()
-        kmeans_stage_test_ds_acc = test_accuracy_df(spark, rankConfig, inputPipeline, pipelineSession)
+        kmeans_stage_test_ds_acc = test_accuracy_df(pipelineSession.kmeans_stage_test_ds, arguments_col_y, pipelineSession.cluster_freq_dict)
         pipelineSession.accuracyDictListNew = test_accuracy_df_to_list(kmeans_stage_test_ds_acc, arguments_col_y)
         pipelineSession.time_duration_accuracy_start_stage_t2 = (datetime.datetime.now()-t2)
         
@@ -209,9 +209,6 @@ def test_accuracy(kmeans_test_ds, arguments_col_y, cluster_freq_dict):
         accuracyDict = get_accuracy(r, cluster_freq_dict, c, arguments_col_y)
         accuracyDictList.append(accuracyDict)
     
-    accuracyDictListNew = []
-    
-            
     return accuracyDictList
 
 def get_accuracy(r, cluster_freq_dict, c, arguments_col_y):
@@ -224,7 +221,7 @@ def get_accuracy(r, cluster_freq_dict, c, arguments_col_y):
         # valori di default
         last_position = None
         position = None
-        acc= 0
+        acc= 0.0
         accuracyDict[ar] = {}
         if ar in cluster_freq_dict[str(c)]:
             last_position = cluster_freq_dict[c][ar]['last']
@@ -294,10 +291,7 @@ def calculate_pos(cluster_freq_dict, ar):
 
 # https://ragrawal.wordpress.com/2017/06/17/reusable-spark-custom-udf/ 
 # from accuracy_stage import test_accuracy_df
-def test_accuracy_df(spark, rankConfig, inputPipeline, pipelineSession):
-    kmeans_stage_test_ds = pipelineSession.kmeans_stage_test_ds
-    arguments_col_y = rankConfig.getArgumentsColY([]) 
-    cluster_freq_dict = pipelineSession.cluster_freq_dict
+def test_accuracy_df(kmeans_stage_test_ds, arguments_col_y, cluster_freq_dict):
     
     kmeans_stage_test_ds_acc = kmeans_stage_test_ds
     for ar in arguments_col_y:

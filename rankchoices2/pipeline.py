@@ -125,7 +125,7 @@ def execute(base_filename = "../data/bo_since19-01-2018_annullato_no-strt_e_prst
 
 
 if __name__ == '__main__':
-    start()
+    execute()
     
     
 # import pipeline as p
