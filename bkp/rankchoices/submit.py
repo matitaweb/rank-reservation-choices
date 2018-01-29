@@ -1,0 +1,2 @@
+import pipeline as pipe
+pipe.start(base_filename = "/dati/bo_20140101-20180119_annullato_no-strt_e_prst_valide/bo_20140101-20180119_annullato_no-strt_e_prst_valide", split=[0.99, 0.01], k_pca_perc=1, k_means_num=10000, stage_start="LOAD", stage_stop="PCA")
