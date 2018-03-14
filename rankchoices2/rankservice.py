@@ -52,7 +52,8 @@ if __name__ == '__main__':
         print("ARG: " + args.spark_home_path)
         spark_home = args.spark_home_path
     else:
-        spark_home = "/home/ubuntu/workspace/spark-2.2.1-bin-hadoop2.7"
+        spark_home = "/home/ubuntu/workspace/spark-2.3.0-bin-hadoop2.7"
+        # spark_home = "/home/ubuntu/workspace/spark-2.2.1-bin-hadoop2.7"
     
     
     if not os.path.exists(spark_home): 
@@ -142,7 +143,8 @@ if __name__ == '__main__':
     
     
     # LOAD KMEANS MODEL CENTERS
-    print("MODEL ACTIVE Cluster Centers: " + str(len(kmeans_model.clusterCenters())))
+    centers = kmeans_model.clusterCenters()
+    print("MODEL ACTIVE Cluster Centers: " + str(len(centers)))
     # print(model_info)
     
     
@@ -225,7 +227,7 @@ if __name__ == '__main__':
         
         
         #print(kmeans_df_pca.head(1))
-        wssse = kmeans_model.computeCost(df_pca)
+        #wssse = kmeans_model.computeCost(df_pca)
         #print("Within Set Sum of Squared Errors = " + str(wssse))
         
         time_duration_prepare = (datetime.datetime.now()-t1)
@@ -240,7 +242,7 @@ if __name__ == '__main__':
         
         t1 = datetime.datetime.now()
         accuracyDictList = []
-        centers = kmeans_model.clusterCenters()
+        
         predList = kmeans_df_pca.collect()
         for r in predList:
             cluster_center = centers[r['prediction']]
