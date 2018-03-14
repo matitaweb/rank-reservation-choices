@@ -46,7 +46,7 @@ class KmeansService:
         pipelineSession.kmeans_stage_train_ds = pipelineSession.kmeans_model_fitted.transform(pipelineSession.pca_stage_train_ds)   
         pipelineSession.kmeans_stage_test_ds = pipelineSession.kmeans_model_fitted.transform(pipelineSession.pca_stage_test_ds) 
         
-        pipelineSession.wssse = pipelineSession.kmeans_model_fitted.computeCost(pipelineSession.kmeans_stage_train_ds)
+        pipelineSession.wssse_train = pipelineSession.kmeans_model_fitted.computeCost(pipelineSession.kmeans_stage_train_ds)
 
         # save json model info
         pipelineSession.kmeans_centers = [str(center) for center in pipelineSession.kmeans_model_fitted.clusterCenters()]
@@ -99,7 +99,7 @@ class KmeansService:
         file.write('time snapshoot: ' + time_snapshoot +'  \n\n')
         
         
-        file.write('WSSSE: ' + str(pipelineSession.wssse) +'  \n')
+        file.write('WSSSE TRAIN: ' + str(pipelineSession.wssse_train) +'  \n')
         file.write('CENTERS: ' + str(pipelineSession.kmeans_centers) +'  \n')
         
         file.close()
@@ -118,7 +118,7 @@ def save_model_info(pipelineSession, rankConfig, inputPipeline):
     model_info['tot_col'] = tot_col
     model_info['k_pca'] = k_pca
     model_info['k_pca_perc'] = inputPipeline.pca_perc
-    model_info['wssse'] = pipelineSession.wssse
+    model_info['wssse_train'] = pipelineSession.wssse_train
     model_info['kmeans_centers'] = pipelineSession.kmeans_centers
     
     

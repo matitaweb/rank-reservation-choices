@@ -32,7 +32,8 @@ class PipelineSession:
         self.time_duration_kmeans_load_data = None
         self.time_duration_kmeans_start_stage = None
         self.time_duration_kmeans_snapshot_stage = None
-        self.wssse = None
+        self.wssse_train = None
+        self.wssse_test = None
         self.kmeans_centers = None
         
         self.cluster_freq_dict = None

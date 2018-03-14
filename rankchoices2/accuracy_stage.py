@@ -61,11 +61,14 @@ class AccuracyService:
         pipelineSession.accuracyDictList = test_accuracy(pipelineSession.kmeans_stage_test_ds, arguments_col_y, pipelineSession.cluster_freq_dict)
         pipelineSession.time_duration_accuracy_start_stage_t1 = (datetime.datetime.now()-t2)
         
+        """
         t2 = datetime.datetime.now()
         kmeans_stage_test_ds_acc = test_accuracy_df(pipelineSession.kmeans_stage_test_ds, arguments_col_y, pipelineSession.cluster_freq_dict)
         pipelineSession.accuracyDictListNew = test_accuracy_df_to_list(kmeans_stage_test_ds_acc, arguments_col_y)
         pipelineSession.time_duration_accuracy_start_stage_t2 = (datetime.datetime.now()-t2)
-        
+        """
+        pipelineSession.wssse_train = pipelineSession.kmeans_model_fitted.computeCost(pipelineSession.kmeans_stage_train_ds)
+        pipelineSession.wssse_test = pipelineSession.kmeans_model_fitted.computeCost(pipelineSession.kmeans_stage_test_ds)
 
         pipelineSession.time_duration_accuracy_start_stage = (datetime.datetime.now()-t1)
         return pipelineSession.kmeans_stage_train_ds, pipelineSession.kmeans_stage_test_ds, pipelineSession.time_duration_accuracy_start_stage
@@ -98,6 +101,8 @@ class AccuracyService:
         file.write('k_pca: ' + str(inputPipeline.pca_perc) + '% ' + str(k_pca)+ ' / '+str(tot_col)+' \n')
         file.write('k_kmeans: ' + str(inputPipeline.k_means_num)+'\n')
         file.write('train, test: ' + str(inputPipeline.split)+ ' -> ' + str(split_col) + ' \n')
+        file.write('WSSSE TRAIN: ' + str(pipelineSession.wssse_train) +'  \n')
+        file.write('WSSSE TEST: ' + str(pipelineSession.wssse_test) +'  \n')
         file.write('\nAccuracy position threshold: ' + str(inputPipeline.position_test_threshold)+'\n')
         
         time_load = str(datetime.timedelta(seconds=pipelineSession.time_duration_accuracy_load_data.total_seconds())) if(pipelineSession.time_duration_accuracy_load_data != None) else "-"
@@ -134,13 +139,17 @@ class AccuracyService:
         for c in arguments_col_y:
             
             positionList = [e[c]["LAST_POS"] if e[c]["POS"] is None  else e[c]["POS"]  for e in accuracyDictList]
-            
-            mean_pos = np.mean(positionList)
-            min_pos = np.min(positionList)
-            max_pos = np.max(positionList)
-            median_pos = np.median(positionList)
-            count_position = len(positionList)
-            count_position_threshold = count_position
+            if(positionList == None):
+                print("Non presente: " + str(c))
+                file.write(str(c) + " non presente.. "+'\n')
+                
+            positionList = [x for x in positionList if x is not None]
+            mean_pos = 'None' if positionList == None or len(positionList) == 0 else np.mean(positionList)
+            min_pos = 'None' if positionList == None or len(positionList) == 0 else np.min(positionList)
+            max_pos = 'None' if positionList == None or len(positionList) == 0 else np.max(positionList)
+            median_pos = 'None' if positionList == None or len(positionList) == 0 else np.median(positionList)
+            count_position = 'None' if positionList == None or len(positionList) == 0 else len(positionList)
+            count_position_threshold ='None' if positionList == None or len(positionList) == 0 else count_position
             
             file.write('\n')
             file.write('------------------------------------'+'\n')
@@ -161,13 +170,14 @@ class AccuracyService:
                     file.write("ENTRO LA POS: " + str(i) + " -> " + str(count_position_threshold_perc) +" = " + str(count_position_threshold)  +"/" + str(count_position)+'\n')
             file.write('\n\n')
         
-            mean = np.mean(accuracyMeanList)
+            mean = 'None' if accuracyMeanList == None else np.mean(accuracyMeanList)
             file.write('mean acc.: ' + str(mean)+'\n')
             file.write('------------------------------------'+'\n\n')
             
             
             for c in arguments_col_y:
-                m = np.mean([e[c]['ACC'] for e in accuracyDictList])
+                accList = [e[c]['ACC'] for e in accuracyDictList]
+                m = 'None' if accList == None or len(accList) == 0 else np.mean(accList)
                 file.write("MEAN: " + str(c) + ' -> ' + str(m)+'\n')
                 
             file.write('\n\n\n')
@@ -177,7 +187,8 @@ class AccuracyService:
             file.write('------------------------------------'+'\n\n')
             
             for c in arguments_col_y:
-                m = np.max([e[c]['ACC'] for e in accuracyDictList])
+                accList = [e[c]['ACC'] for e in accuracyDictList]
+                m = 'None' if accList == None or len(accList) == 0 else np.max(accList)
                 file.write("MAX: " + str(c) + ' -> ' + str(m)+'\n')
             
             file.write('\n\n\n')
@@ -187,7 +198,8 @@ class AccuracyService:
             file.write('------------------------------------'+'\n\n')
             
             for c in arguments_col_y:
-                m = np.min([e[c]['ACC'] for e in accuracyDictList])
+                accList = [e[c]['ACC'] for e in accuracyDictList]
+                m = 'None' if accList == None or len(accList) == 0 else np.min(accList)
                 file.write("MIN: " + str(c) + ' -> ' + str(m)+'\n')        
             
             file.write('------------------------------------'+'\n\n')

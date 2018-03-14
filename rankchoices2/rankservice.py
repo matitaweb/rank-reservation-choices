@@ -29,7 +29,7 @@ normalizzazione del calcolo del ranking
 python rankservice.py -b "/home/ubuntu/workspace/rank-reservation-choices/data/bo_since19-01-2018_annullato_no-strt_e_prst_valide"
 
 
-python rankservice.py -b "/dati/data/light_r300.000.000" -s "/root/spark-2.2.1-bin-hadoop2.7"
+python rankservice.py -b "/dati/bo_20140101-20180119_annullato_no-strt_e_prst_valide_kmean_10k/bo_20140101-20180119_annullato_no-strt_e_prst_valide/bo_20140101-20180119_annullato_no-strt_e_prst_valide" -s "/root/spark-2.2.1-bin-hadoop2.7"
 python rankservice.py -b "/home/ubuntu/workspace/rank-reservation-choices/data/bo_since19-01-2018_annullato_no-strt_e_prst_valide"
 """
 
@@ -46,7 +46,7 @@ if __name__ == '__main__':
         print("ARG: " + args.base_dir_path)
         base_dir = args.base_dir_path
     else:
-        base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/bo_since19-01-2018_annullato_no-strt_e_prst_valid"
+        base_dir = "/home/ubuntu/workspace/rank-reservation-choices/data/bo_since19-01-2018_annullato_no-strt_e_prst_valide"
     
     if args.spark_home_path:
         print("ARG: " + args.spark_home_path)
@@ -99,8 +99,7 @@ if __name__ == '__main__':
     
     # dto's
     rankConfig = RankConfig();
-    inputPipeline = InputPipeline()
-    inputPipeline.base_filename = base_dir
+    inputPipeline = InputPipeline(base_filename=base_dir)
 
     
     # LOAD SPARK ENV
@@ -235,8 +234,8 @@ if __name__ == '__main__':
         
         result = {}
         result['version'] = "1.0.0"
-        result['model']= kmeans_model_info
-        result['wssse'] = wssse
+        # result['model']= kmeans_model_info
+        # result['wssse'] = wssse
         
         
         t1 = datetime.datetime.now()
@@ -261,6 +260,10 @@ if __name__ == '__main__':
             centerdistance = accuracyDict['centerdistance']
             mean_acc  = accuracyDict['mean_acc']
             accuracyDict['mean_acc_norm'] = mean_acc * (tot_centerdistance-centerdistance)/tot_centerdistance
+            for ar in arguments_col_y:
+                acc = accuracyDict[ar]['ACC']
+                mean_acc_ar = acc * (tot_centerdistance-centerdistance)/tot_centerdistance
+                accuracyDict[ar]['ACC_NORM'] = mean_acc_ar
         
         print("ACCURACY OLD: " + str(datetime.timedelta(seconds=(datetime.datetime.now()-t1).total_seconds())))
     

@@ -39,7 +39,7 @@ class InputPipeline:
         self.report_pca_stage_filename = base_filename +".pca_stage.report.txt"
         self.report_kmeans_stage_filename = base_filename +".kmeans_stage.report.txt"
         self.report_dict_stage_filename = base_filename +".dict_stage.report.txt"
-        self.report_accuracy_stage_filename = base_filename +".accuracy_stage.report.txt"
+        self.report_accuracy_stage_filename = base_filename +".accuracy_stage.report.pca"+str(pca_perc)+".kmean"+str(k_means_num)+".txt"
         
         
         
